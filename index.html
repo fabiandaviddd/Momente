@@ -186,6 +186,43 @@ const ANGLES=[
  {id:"koerper",hint:"Körper zuerst, Kopf später – der Morgen wird nicht im Kopf entschieden, sondern in den Füßen. Füße auf den Boden, der Rest folgt."},
 ];
 
+/* Handlungs-Pool – die App wählt täglich andere Bausteine.
+   low = auch für verschlafene Morgen geeignet (kaum kognitive Last) */
+const ACTIONS=[
+ {t:"Fenster weit auf, Licht und Luft rein", low:true},
+ {t:"ein großes Glas Wasser trinken", low:true},
+ {t:"kaltes Wasser ins Gesicht", low:true},
+ {t:"barfuß ans Fenster gehen", low:true},
+ {t:"Vorhänge ganz auf, alles Licht rein", low:true},
+ {t:"einmal lang und ausgiebig strecken", low:true},
+ {t:"30 Sekunden summen, tiefer Ton", low:true},
+ {t:"zweimal tief einatmen, einmal lang ausatmen (Seufzer)", low:true},
+ {t:"Schultern kreisen, Nacken lang machen", low:true},
+ {t:"10 Liegestütze"},
+ {t:"20 Kniebeugen"},
+ {t:"kurz auf den Balkon oder vor die Tür treten"},
+ {t:"einen Lieblingssong laut anmachen"},
+ {t:"das Bett machen"},
+ {t:"in 60 Sekunden angezogen sein"},
+ {t:"duschen, am Ende kurz kalt"},
+ {t:"Jum begrüßen und die Morgenrunde starten"},
+ {t:"einmal quer durchs Zimmer tanzen"},
+];
+const LS_ACT="momente_act_recent";
+function pickActions(state){
+  const pool=state==="verschlafen"?ACTIONS.filter(a=>a.low):ACTIONS;
+  const recent=getRecent(LS_ACT);
+  let fresh=pool.filter(a=>!recent.includes(a.t));
+  if(fresh.length<4) fresh=pool;
+  const chosen=[];
+  const copy=[...fresh];
+  while(chosen.length<4&&copy.length){
+    chosen.push(copy.splice(Math.floor(Math.random()*copy.length),1)[0]);
+  }
+  setRecent(LS_ACT,[...chosen.map(a=>a.t),...recent].slice(0,8));
+  return chosen;
+}
+
 /* Zustands-Strategien – abgeleitet aus Sleep-Inertia- und Arousal-Forschung */
 const STATES={
  verschlafen:`ZUSTAND: Fabian ist noch tief in der Schlaf-Trägheit. Sein Gehirn ist gerade nicht bereit für kluge Gedanken oder viele Ideen – das ist Biologie, kein Charakter.
@@ -233,7 +270,7 @@ async function getWeather(){
 const WEEKDAYS=["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
 const seasonOf=(m)=> m>=2&&m<=4?"Frühling":m>=5&&m<=7?"Sommer":m>=8&&m<=10?"Herbst":"Winter";
 
-function buildPrompt(state, angle, weather){
+function buildPrompt(state, angle, weather, actions){
   const now=new Date();
   const wd=WEEKDAYS[now.getDay()];
   const date=now.toLocaleDateString("de-DE",{day:"numeric",month:"long"});
@@ -260,6 +297,10 @@ Der Text hat genau einen Job: Momentum erzeugen – Fabian körperlich in Bewegu
 BLICKWINKEL FÜR HEUTE (nur als kurzer Aufhänger, maximal 1–2 Sätze, dann in Bewegung):
 ${angle.hint}
 
+HANDLUNGS-BAUSTEINE FÜR HEUTE:
+${actions.map(a=>"- "+a.t).join("\n")}
+Baue die Momentum-Kette aus 2–3 dieser Bausteine, frei formuliert und in sinnvoller Reihenfolge. Nutze NUR diese Bausteine – keine eigenen Standard-Handlungen aus Gewohnheit. Einzig "aufstehen" oder "Füße auf den Boden" darf zusätzlich als Auftakt vorkommen, muss aber nicht.
+
 REGELN – alle verbindlich:
 - Deutsch, du-Form, ein Absatz oder zwei kurze.
 - Ton laut Strategie oben. Wie ein guter Freund, der schon in der Küche steht. Nie fordernd im Sinne von Drill, nie meditativ. Kein Betrachten, kein "spür mal".
@@ -267,6 +308,7 @@ REGELN – alle verbindlich:
 - NIEMALS erklären, warum etwas wichtig ist. Keine Produktivitätsfloskeln, keine Zitate, kein Pathos, keine Kalendersprüche, kein "Du schaffst das!".
 - Kein "Guten Morgen Fabian!"-Einstieg als Floskel – fang mitten im Zug an.
 - Höchstens ein Ausrufezeichen im ganzen Text.
+- Kaffee wird NIEMALS erwähnt, in keinem Text.
 - Keine Emojis, keine Listen, keine Überschriften.
 
 Antworte NUR mit dem Text selbst, nichts davor oder danach.`;
@@ -281,14 +323,14 @@ const FALLBACK={
 "Der Körper ist wach, das Gehirn lädt noch. Warte nicht drauf. Füße auf den Boden. Zum Fenster. Kaltes Wasser ins Gesicht. Drei Handgriffe, null Denken. Genau richtig für jetzt.",
  ],
  gehtso:[
-"Ein Körper in Ruhe bleibt in Ruhe – bis einer die Decke wegzieht. Sei du der, der zieht. Füße auf den Boden, das ist der teuerste Schritt des Tages, alle danach sind billiger. Ans Fenster, aufmachen, die Luft macht den Rest. Dann Wasser aufsetzen und beim Warten einmal durchstrecken.",
-"Jum würde jetzt nicht verhandeln. Augen auf, strecken, zur Tür – seine ganze Morgenroutine, seit Jahren erfolgreich. Leih sie dir: aufsetzen, einmal lang strecken, aufstehen. Bis der Kaffee durchgelaufen ist, hast du das Schwerste des Tages schon hinter dir.",
+"Ein Körper in Ruhe bleibt in Ruhe – bis einer die Decke wegzieht. Sei du der, der zieht. Füße auf den Boden, das ist der teuerste Schritt des Tages, alle danach sind billiger. Ans Fenster, aufmachen, die Luft macht den Rest. Dann ein großes Glas Wasser und einmal lang durchstrecken.",
+"Jum würde jetzt nicht verhandeln. Augen auf, strecken, zur Tür – seine ganze Morgenroutine, seit Jahren erfolgreich. Leih sie dir: aufsetzen, einmal lang strecken, aufstehen. Bis du im Bad warst, hast du das Schwerste des Tages schon hinter dir.",
 "Der erste Take muss nicht gut sein, er muss nur laufen. Also aufnehmen: aufstehen, Fenster auf, Wasser trinken – das ist deine erste Spur heute, roh und völlig okay. Der Rest des Tages wird darüber gelayert. Ohne erste Spur kein Song, also los, Füße zuerst.",
-"Der Trail entscheidet sich nicht am Gipfel, er entscheidet sich beim Anrollen. Heute ist Anrollen: Decke weg, Füße runter, stehen. Ans Fenster, Luft rein. Wenn du beim Kaffee bist, rollt der Tag schon – und Tage, die früh rollen, werden die guten.",
+"Der Trail entscheidet sich nicht am Gipfel, er entscheidet sich beim Anrollen. Heute ist Anrollen: Decke weg, Füße runter, stehen. Ans Fenster, Luft rein. Wenn du angezogen bist, rollt der Tag schon – und Tage, die früh rollen, werden die guten.",
  ],
  wach:[
 "Wach? Dann nicht verschenken. Raus aus dem Bett, Fenster auf – die ersten zehn Minuten gehören dir, bevor der Tag Ansprüche stellt. Wasser, strecken, und dann direkt das erste Ding anfassen, das heute zählt. Mit Rückenwind startet man nicht langsam.",
-"Ausgeruht aufgewacht ist ein Vorsprung – nimm ihn mit. Füße runter, Fenster auf, einmal tief. Kleine Challenge: In sechzig Sekunden stehst du angezogen in der Küche. Los. Der Tag kriegt dich heute in Bestform.",
+"Ausgeruht aufgewacht ist ein Vorsprung – nimm ihn mit. Füße runter, Fenster auf, einmal tief. Kleine Challenge: In sechzig Sekunden stehst du angezogen am offenen Fenster. Los. Der Tag kriegt dich heute in Bestform.",
 "Heute ist einer der Morgen, an denen es leicht geht – die sind zum Ausnutzen da. Aufstehen, Licht rein, Wasser. Und dann nicht trödeln: das Erste, worauf du Lust hast, sofort anfangen. Momentum plus Lust ist die beste Kombination, die dein Gehirn kennt.",
 "Der Motor läuft schon – fehlt nur das Losfahren. Decke weg, stehen, strecken. Fenster auf, kurz schauen, was der Tag vorhat. Dann zieh los, bevor der Schwung Fragen stellt. Tage wie heute fahren sich fast von allein.",
  ],
@@ -369,17 +411,18 @@ async function generate(){
   $("text-actions").classList.remove("visible");
 
   const angle=pickAngle();
+  const actions=pickActions(currentState);
   const weatherPromise=getWeather();
   let text=null, offline=false;
   try{
     const weather=await weatherPromise;
-    text=await callAPI(buildPrompt(currentState,angle,weather));
+    text=await callAPI(buildPrompt(currentState,angle,weather,actions));
     rememberAngle(angle.id);
   }catch(e){
     try{
       await new Promise(r=>setTimeout(r,1200));
       const weather=await weatherPromise.catch(()=>null);
-      text=await callAPI(buildPrompt(currentState,angle,weather));
+      text=await callAPI(buildPrompt(currentState,angle,weather,actions));
       rememberAngle(angle.id);
     }catch(e2){
       text=pickFallback(currentState);
