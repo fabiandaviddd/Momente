@@ -252,25 +252,30 @@ function pickActions(state){
   return chosen;
 }
 
+/* Die Stimmen – die App würfelt täglich, wer spricht */
+const VOICES=[
+ {id:"chef",desc:"Der Küchenchef: kurz angebunden, herzlich-ruppig, denkt in Gastro-Sprache (Mise en place, Service, Pass, Station). Sätze wie Ansagen in einer lauten Küche, aber mit Herz unterm Kittel. Tonprobe für die Haltung (Wörter NICHT kopieren): 'Mise en place. Das Bett ist abgeräumt. Weiter.'"},
+ {id:"kumpel",desc:"Der trockene Kumpel: lakonisch, ironisch, nimmt das Bett und den inneren Verhandler kein bisschen ernst – Fabian als Person aber schon. Untertreibt lieber, als zu pushen. Tonprobe für die Haltung (Wörter NICHT kopieren): 'Dein Bett hat wieder Argumente? Es hat eine Matratze, keinen Doktortitel.'"},
+ {id:"kommentator",desc:"Der Kommentator: Sportreporter-Energie, kommentiert live das Duell 'Fabian gegen den Morgen'. Dramatik mit Augenzwinkern, kurze atemlose Sätze, Spielstand-Logik. Tonprobe für die Haltung (Wörter NICHT kopieren): 'Bewegung unter der Decke – die Füße suchen den Boden, das Publikum hält die Luft an!'"},
+ {id:"wette",desc:"Die Wette: frech, direkt, fordert Fabian heraus und traut ihm dabei sichtbar was zu. Setzt kleine Einsätze, stichelt, grinst zwischen den Zeilen. Tonprobe für die Haltung (Wörter NICHT kopieren): 'Wetten, du stehst nicht in 40 Sekunden am Fenster? Na los, beweis mir das Gegenteil.'"},
+ {id:"poet",desc:"Der eilige Poet: ein einziges starkes Bild, dann ein klarer Befehl. Der kürzeste von allen – jedes Wort muss seinen Platz verdienen, kein Schnörkel. Tonprobe für die Haltung (Wörter NICHT kopieren): 'Das Licht steht schon mitten im Zimmer und wartet. Steh auf, es hat nicht ewig Zeit.'"},
+];
+const LS_V="momente_v_recent";
+function pickVoice(){
+  const recent=getRecent(LS_V);
+  let fresh=VOICES.filter(v=>!recent.includes(v.id));
+  if(fresh.length===0) fresh=VOICES;
+  const v=fresh[Math.floor(Math.random()*fresh.length)];
+  setRecent(LS_V,[v.id,...recent.filter(x=>x!==v.id)].slice(0,3));
+  return v;
+}
+
 /* Zustands-Strategien – abgeleitet aus Sleep-Inertia- und Arousal-Forschung */
 const STATES={
- verschlafen:`ZUSTAND: Fabian ist noch tief in der Schlaf-Trägheit. Sein Gehirn ist gerade nicht bereit für kluge Gedanken oder viele Ideen – das ist Biologie, kein Charakter.
-STRATEGIE (abholen, dann Fahrt aufnehmen):
-- Sehr kurze Sätze, maximal 8–10 Wörter. Eine einzige Idee im ganzen Text.
-- Die Kette besteht aus körperlichen Gegenmitteln gegen Schlaf-Trägheit: Licht (Fenster auf), kaltes Wasser ins Gesicht, aufstehen und strecken. Kein Denken verlangen.
-- Einstieg sanft und verständnisvoll (kein Vorwurf fürs Verschlafensein), dann Satz für Satz mehr Zug.
-- Länge: 60–100 Wörter, weiterhin kurze Sätze.`,
- gehtso:`ZUSTAND: Fabian ist wach, aber der Motor läuft noch nicht. Normaler Morgen.
-STRATEGIE:
-- Warm, aber mit Zug nach vorn. Kurze Sätze, starke Verben, Tempo.
-- Momentum-Kette aus 2–3 winzigen Handlungen, die aufeinander aufbauen (Füße auf den Boden → Fenster → Wasser o.ä.), als fließender Zug formuliert.
-- Länge: 90–140 Wörter.`,
- wach:`ZUSTAND: Fabian ist ausgeruht und wach aufgewacht – das ist ein Vorsprung, den man nicht verschenkt.
-STRATEGIE:
-- Tempo ab dem ersten Satz. Der Text darf spielerisch fordern (nie Drill): eine Mini-Challenge, ein Augenzwinkern, Vorsprung-Denken.
-- Die Kette darf ambitionierter sein und direkt in etwas münden, worauf er Lust hat.
-- Länge: 90–140 Wörter.`,
-};
+ verschlafen:`ZUSTAND: verschlafen – tiefe Schlaf-Trägheit, das Gehirn lädt noch. Dimm deine Stimme: leiser, langsamer, geduldiger – aber sie bleibt unverkennbar sie selbst. Sehr kurze Sätze. Höchstens eine Idee im ganzen Text. Handlungen nur körperlich (Licht, kaltes Wasser, strecken, stehen), nichts, das Nachdenken verlangt. Länge: 40–70 Wörter.`,
+ gehtso:`ZUSTAND: wach, aber der Motor läuft noch nicht. Deine Stimme in Normalform: Zug nach vorn, kurze Sätze, starke Verben. Länge: 70–110 Wörter.`,
+ wach:`ZUSTAND: ausgeruht aufgewacht – Rückenwind. Dreh deine Stimme voll auf: Tempo ab dem ersten Satz, Challenge und Übermut ausdrücklich erlaubt. Länge: 60–120 Wörter.`,
+}
 
 /* Wetter: WMO-Codes → Beschreibung */
 function weatherDesc(code){
@@ -302,64 +307,51 @@ async function getWeather(){
 const WEEKDAYS=["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
 const seasonOf=(m)=> m>=2&&m<=4?"Frühling":m>=5&&m<=7?"Sommer":m>=8&&m<=10?"Herbst":"Winter";
 
-function buildPrompt(state, angle, weather, actions, analog){
+function buildPrompt(state, voice, weather, actions, analog){
   const now=new Date();
   const wd=WEEKDAYS[now.getDay()];
   const date=now.toLocaleDateString("de-DE",{day:"numeric",month:"long"});
   const season=seasonOf(now.getMonth());
-  const hour=now.getHours();
-  const daypart=hour<9?"früher Morgen":hour<12?"Vormittag":"später Start in den Tag";
-  const mins=hour*60+now.getMinutes();
-  const timeStr=now.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
-  const lateBlock=mins>=630?`
+  const weatherLine=(weather&&weather.notable)?`
+DRAUSSEN IN MÜNCHEN: ${weather.desc}, ${weather.temp}°C. Nutze das nur, wenn es dem Zug nach vorn dient – bei Regen die Gemütlichkeits-Falle umdrehen (Regen ist das Startsignal für drinnen), bei Kälte: Wärme entsteht durch Bewegung. Nie als Wetterbericht.`:"";
 
-BESONDERE LAGE – SPÄTER START (${timeStr} Uhr):
-Fabian kennt bei spätem Aufstehen ein Muster: Das kleine Zeitfenster erzeugt Druck, der Kopf kippt in Lähmung oder flüchtet in die erstbeste Aufgabe, und Selbstfürsorge wie das wirklich Wichtige gehen verloren. Was der Text leisten soll – natürlich eingewoben, KEIN nummeriertes Schema, keine festen Ritualformeln: den Zeitdruck rausnehmen (das Fenster reicht), Selbstfürsorge vor Produktivität stellen${state!=="verschlafen"?", und ihn beiläufig dazu bringen, sich für heute auf eine Hauptsache zu beschränken – in deinen eigenen Worten, jedes Mal anders angestoßen":" – und sonst nichts verlangen: kein Entscheiden, keine Prioritätenfragen, sein Gehirn ist dafür noch nicht bereit"}. Erlaubnis zum Weglassen mitgeben. Kein Vorwurf fürs späte Aufstehen, mit keinem Wort.`:"";
-  const weatherLine=(weather&&weather.notable)?`DRAUSSEN IN MÜNCHEN: ${weather.desc}, ${weather.temp}°C.
-WETTER-REGEL: Nutze das Wetter nur, wenn es dem Zug nach vorn dient – nie als Smalltalk. Bei Regen oder trübem Wetter: sprich die Gemütlichkeits-Falle direkt an und dreh sie um (Regen ist das Startsignal für drinnen – Licht an, Bewegung drinnen, der Kaffee kommt nach der Bewegung, nicht statt ihr). Bei klarem Himmel oder Sonne: Licht ist das stärkste Wachmacher-Signal – mach ans-Fenster-gehen oder rausschauen zum ersten Kettenglied. Bei Kälte oder Schnee: Wärme entsteht durch Bewegung, nicht durch Liegenbleiben.`:"";
+  /* TESTPHASE: Spät-Block deaktiviert – jede Tageszeit gilt als "gerade aufgestanden".
+     Wieder aktivieren, wenn die Grund-Texte sitzen. */
 
-  return `Du schreibst einen kurzen Morgentext für Fabian. Er öffnet gerade sein Handy, der Tag hat noch nicht richtig angefangen.
+  return `Du schreibst Fabians Morgentext. Er hat gerade die Augen auf, das Handy in der Hand, der Tag hat noch nicht angefangen.
 
-WER FABIAN IST (nur als Hintergrund, nicht alles erwähnen):
-Restaurantleiter in München (Die Küche im Kraftwerk, moderne alpine Küche). Lebt mit seiner Partnerin Sonja (arbeitet im Homeoffice und ist morgens oft schon vor ihm wach) und Hund Jum. Wenn Fabian später aufsteht, war Jum meist schon mit Sonja draußen. Macht Musik (Songwriting, Logic Pro), fährt Mountainbike. Hat ADHS – sein Thema ist nie das Wissen, sondern das Anfangen.
+WER FABIAN IST (Hintergrund, sparsam verwenden):
+Restaurantleiter in München (Die Küche im Kraftwerk, moderne alpine Küche). Partnerin Sonja arbeitet im Homeoffice und ist morgens oft vor ihm wach; steht Fabian später auf, war Hund Jum meist schon mit ihr draußen. Er macht Musik (Songwriting, Klavier, Logic), fährt Mountainbike. ADHS: Sein Thema ist nie das Wissen, sondern das Anfangen.
 
-HEUTE:
-${wd}, ${date} · ${season} · ${daypart}
-${weatherLine}
+HEUTE: ${wd}, ${date} · ${season}${weatherLine}
+
+DEINE STIMME HEUTE – du schreibst durchgehend als:
+${voice.desc}
+Die Stimme bestimmt Rhythmus, Wortwahl und Haltung des gesamten Textes.
 
 ${STATES[state]}
 
-AUFTRAG:
-Zwei Jobs. Erstens Momentum: Aktion kommt vor Motivation, der Text zieht in den Tag hinein statt über ihn zu reden. Zweitens mentales Setting: Die erste Stunde ist Fabians Territorium, ohne Bildschirm – sein Kopf will sofort ans Handy oder an den Rechner; gib der Stunde stattdessen eine Richtung und mach sie interessanter als den Bildschirm.
+WAS DER TEXT ERREICHEN SOLL:
+1. Momentum: Aktion vor Motivation. Der Text zieht Fabian körperlich aus dem Bett – 1 bis 3 konkrete Handlungen, als Zug erzählt, nie als Checkliste oder Anleitung.
+2. Territorium: Die erste Stunde gehört Fabian, ohne Bildschirm. Irgendwo im Text – am Ende oder wo es die Stimme hergibt – legt er das Handy weg und hat stattdessen etwas Analoges in der Hand.
 
-ÜBERGABE:
-Der Text mündet darin, dass Fabian das Handy weglegt – nie mit leeren Händen, sondern mit genau EINEM dieser analogen Anker:
-${analog.map(a=>"- "+a).join("\n")}
-Jedes Mal völlig anders formuliert. Als Einladung mit Zug, nie als Verbot oder Bildschirm-Moralpredigt.
+HANDLUNGS-IDEEN (Inspiration – du darfst eigene erfinden, solange sie konkret, analog und direkt nach dem Aufstehen machbar sind):
+${actions.map(a=>a.t).join(" · ")}
 
-ANTI-SCHABLONE – WICHTIGSTE REGEL VON ALLEN:
-- Übernimm KEINE Formulierung aus diesem Briefing wörtlich in den Text.
-- Wähle jeden Tag eine andere Dramaturgie: mal eröffnet die Übergabe-Idee den Text, mal eine einzige Handlung, mal der Aufhänger, mal eine Frage. Die Reihenfolge der Elemente ist völlig frei.
-- Höchstens 3 konkrete Handlungen im ganzen Text. Der Text darf NIE wie eine Checkliste oder Anleitung klingen – Ketten aus "Dann… Danach… Dann…" sind verboten.
-- Diese Wendungen sind verbraucht und dürfen nicht vorkommen: "bevor irgendein Bildschirm angeht", "Alles andere darf heute liegen bleiben", "die eine Sache, die wirklich zählt". Wenn du den Gedanken brauchst, finde eine frische, eigene Formulierung dafür.
-- "Füße auf den Boden" darf nur selten und nie als erster Satz vorkommen.${lateBlock}
+ANALOGE ANKER für die Handy-Übergabe (einen wählen oder einen eigenen erfinden, der zu Fabian passt):
+${analog.join(" · ")}
 
-BLICKWINKEL FÜR HEUTE (nur als kurzer Aufhänger, maximal 1–2 Sätze, dann in Bewegung):
-${angle.hint}
+HUMOR-ERLAUBNIS:
+Der Text darf Fabian zum Lachen bringen – Frotzelei unter besten Freunden ist ausdrücklich erwünscht. Aufs Korn genommen werden: das Bett, die Matratze, der innere Verhandler, die Situation. Nie Fabian als Person. Kein Drill, keine Beschämung, kein Vorwurf.
 
-HANDLUNGS-BAUSTEINE FÜR HEUTE:
-${actions.map(a=>"- "+a.t).join("\n")}
-Wähle 1–3 davon – weniger ist oft besser. Ein Text, der eine einzige Handlung richtig gut verkauft, schlägt eine Aufzählung. Nutze keine eigenen Standard-Handlungen aus Gewohnheit; "aufstehen" als Auftakt ist erlaubt.
-
-REGELN – alle verbindlich:
-- Deutsch, du-Form, ein Absatz oder zwei kurze.
-- Ton laut Strategie oben. Wie ein guter Freund, der schon in der Küche steht. Nie fordernd im Sinne von Drill, nie meditativ. Kein Betrachten, kein "spür mal".
-- Der erste Satz muss sofort ziehen – kein Aufwärmen, kein Beschreiben der Morgenstimmung als Selbstzweck.
-- NIEMALS erklären, warum etwas wichtig ist. Keine Produktivitätsfloskeln, keine Zitate, kein Pathos, keine Kalendersprüche, kein "Du schaffst das!".
-- Kein "Guten Morgen Fabian!"-Einstieg als Floskel – fang mitten im Zug an.
-- Höchstens ein Ausrufezeichen im ganzen Text.
-- Kaffee wird NIEMALS erwähnt, in keinem Text.
-- Keine Emojis, keine Listen, keine Überschriften.
+HARTE REGELN:
+- Deutsch, du-Form, ein Absatz oder zwei kurze. Länge laut Zustand.
+- Kaffee wird NIEMALS erwähnt.
+- Eine Hunderunde nur vorschlagen, wenn sie in den Handlungs-Ideen steht.
+- Keine Emojis, keine Listen, keine Überschriften. Ausrufezeichen sparsam (höchstens zwei).
+- Übernimm keine Formulierung aus diesem Briefing und keine Tonprobe wörtlich.
+- Verbrauchte Wendungen, verboten: "bevor irgendein Bildschirm angeht" · "Alles andere darf heute liegen bleiben" · "die eine Sache, die wirklich zählt" · "Das Fenster reicht" · "gehört dir" · "Füße auf den Boden" als Einstieg.
+- Kein Pathos, keine Kalendersprüche, keine Bildschirm-Moralpredigt, kein "Du schaffst das".
 
 Antworte NUR mit dem Text selbst, nichts davor oder danach.`;
 }
@@ -460,21 +452,19 @@ async function generate(){
   setVisible("offline-note", false);
   $("text-actions").classList.remove("visible");
 
-  const angle=pickAngle();
+  const voice=pickVoice();
   const actions=pickActions(currentState);
   const analog=pickAnalog();
   const weatherPromise=getWeather();
   let text=null, offline=false;
   try{
     const weather=await weatherPromise;
-    text=await callAPI(buildPrompt(currentState,angle,weather,actions,analog));
-    rememberAngle(angle.id);
+    text=await callAPI(buildPrompt(currentState,voice,weather,actions,analog));
   }catch(e){
     try{
       await new Promise(r=>setTimeout(r,1200));
       const weather=await weatherPromise.catch(()=>null);
-      text=await callAPI(buildPrompt(currentState,angle,weather,actions,analog));
-      rememberAngle(angle.id);
+      text=await callAPI(buildPrompt(currentState,voice,weather,actions,analog));
     }catch(e2){
       text=pickFallback(currentState);
       offline=true;
