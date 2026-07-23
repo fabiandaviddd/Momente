@@ -205,12 +205,41 @@ const ACTIONS=[
  {t:"das Bett machen"},
  {t:"in 60 Sekunden angezogen sein"},
  {t:"duschen, am Ende kurz kalt"},
- {t:"Jum begrüßen und die Morgenrunde starten"},
+ {t:"Jum begrüßen und die Morgenrunde starten", early:true},
  {t:"einmal quer durchs Zimmer tanzen"},
 ];
+/* Analoge Anker – womit die erste bildschirmfreie Stunde gefüllt wird */
+const ANALOG=[
+ "ein paar Minuten Klavier – das Alfred's-Buch liegt bereit",
+ "eine Songidee ins Notizbuch statt in Logic",
+ "eine Idee mit Gitarre oder Stimme anspielen, ohne Aufnahme",
+ "ein paar Seiten in einem Geschichtsbuch",
+ "Frühstück richtig machen statt nebenbei",
+ "auf dem Balkon sitzen, Tee, kein Handy",
+ "Dehnen oder Mobility mit Musik",
+ "am Bike schrauben oder es für die nächste Tour checken",
+ "mit Jum spielen oder eine Extra-Runde drehen",
+ "kurz bei Sonja vorbeischauen, bevor ihr Arbeitstag richtig losgeht",
+];
+const LS_AN="momente_an_recent";
+function pickAnalog(){
+  const recent=getRecent(LS_AN);
+  let fresh=ANALOG.filter(a=>!recent.includes(a));
+  if(fresh.length<3) fresh=[...ANALOG];
+  const chosen=[];
+  const copy=[...fresh];
+  while(chosen.length<3&&copy.length){
+    chosen.push(copy.splice(Math.floor(Math.random()*copy.length),1)[0]);
+  }
+  setRecent(LS_AN,[...chosen,...recent].slice(0,5));
+  return chosen;
+}
+
 const LS_ACT="momente_act_recent";
 function pickActions(state){
-  const pool=state==="verschlafen"?ACTIONS.filter(a=>a.low):ACTIONS;
+  const hour=new Date().getHours();
+  let pool=state==="verschlafen"?ACTIONS.filter(a=>a.low):ACTIONS;
+  pool=pool.filter(a=>a.early?hour<8:true);
   const recent=getRecent(LS_ACT);
   let fresh=pool.filter(a=>!recent.includes(a.t));
   if(fresh.length<4) fresh=pool;
@@ -230,17 +259,17 @@ STRATEGIE (abholen, dann Fahrt aufnehmen):
 - Sehr kurze Sätze, maximal 8–10 Wörter. Eine einzige Idee im ganzen Text.
 - Die Kette besteht aus körperlichen Gegenmitteln gegen Schlaf-Trägheit: Licht (Fenster auf), kaltes Wasser ins Gesicht, aufstehen und strecken. Kein Denken verlangen.
 - Einstieg sanft und verständnisvoll (kein Vorwurf fürs Verschlafensein), dann Satz für Satz mehr Zug.
-- Länge: 50–80 Wörter.`,
+- Länge: 60–100 Wörter, weiterhin kurze Sätze.`,
  gehtso:`ZUSTAND: Fabian ist wach, aber der Motor läuft noch nicht. Normaler Morgen.
 STRATEGIE:
 - Warm, aber mit Zug nach vorn. Kurze Sätze, starke Verben, Tempo.
 - Momentum-Kette aus 2–3 winzigen Handlungen, die aufeinander aufbauen (Füße auf den Boden → Fenster → Wasser o.ä.), als fließender Zug formuliert.
-- Länge: 60–100 Wörter.`,
+- Länge: 90–140 Wörter.`,
  wach:`ZUSTAND: Fabian ist ausgeruht und wach aufgewacht – das ist ein Vorsprung, den man nicht verschenkt.
 STRATEGIE:
 - Tempo ab dem ersten Satz. Der Text darf spielerisch fordern (nie Drill): eine Mini-Challenge, ein Augenzwinkern, Vorsprung-Denken.
 - Die Kette darf ambitionierter sein und direkt in etwas münden, worauf er Lust hat.
-- Länge: 60–100 Wörter.`,
+- Länge: 90–140 Wörter.`,
 };
 
 /* Wetter: WMO-Codes → Beschreibung */
@@ -270,20 +299,26 @@ async function getWeather(){
 const WEEKDAYS=["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
 const seasonOf=(m)=> m>=2&&m<=4?"Frühling":m>=5&&m<=7?"Sommer":m>=8&&m<=10?"Herbst":"Winter";
 
-function buildPrompt(state, angle, weather, actions){
+function buildPrompt(state, angle, weather, actions, analog){
   const now=new Date();
   const wd=WEEKDAYS[now.getDay()];
   const date=now.toLocaleDateString("de-DE",{day:"numeric",month:"long"});
   const season=seasonOf(now.getMonth());
   const hour=now.getHours();
   const daypart=hour<9?"früher Morgen":hour<12?"Vormittag":"später Start in den Tag";
+  const mins=hour*60+now.getMinutes();
+  const timeStr=now.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+  const lateBlock=mins>=630?`
+
+BESONDERE LAGE – SPÄTER START (${timeStr} Uhr):
+Genau jetzt droht Fabians bekanntes Muster: Das kleine Zeitfenster bis zu den Verpflichtungen des Tages fühlt sich zu kurz an, der Kopf kippt in Lähmung oder flüchtet in die erstbeste Aufgabe – und vergisst dabei das Wichtige, auch das Kümmern um sich selbst. Der Text entschärft das in dieser Reihenfolge: (1) Das Fenster reicht – sag das klar. (2) Zuerst das Selbstfürsorge-Minimum (etwas essen, duschen, kurz bewegen). (3) Dann genau EINE Sache, die heute wirklich zählt – Fabian wählt sie selbst, der Text fordert ihn nur auf, sie jetzt beim Namen zu nennen, bevor irgendein Bildschirm angeht. (4) Ausdrückliche Erlaubnis, alles andere heute zu lassen. Kein Vorwurf fürs späte Aufstehen, mit keinem Wort. Die Bildschirm-Übergabe bleibt trotzdem Pflicht.`:"";
   const weatherLine=weather?`DRAUSSEN IN MÜNCHEN: ${weather.desc}, ${weather.temp}°C.
 WETTER-REGEL: Nutze das Wetter nur, wenn es dem Zug nach vorn dient – nie als Smalltalk. Bei Regen oder trübem Wetter: sprich die Gemütlichkeits-Falle direkt an und dreh sie um (Regen ist das Startsignal für drinnen – Licht an, Bewegung drinnen, der Kaffee kommt nach der Bewegung, nicht statt ihr). Bei klarem Himmel oder Sonne: Licht ist das stärkste Wachmacher-Signal – mach ans-Fenster-gehen oder rausschauen zum ersten Kettenglied. Bei Kälte oder Schnee: Wärme entsteht durch Bewegung, nicht durch Liegenbleiben.`:"";
 
   return `Du schreibst einen kurzen Morgentext für Fabian. Er öffnet gerade sein Handy, der Tag hat noch nicht richtig angefangen.
 
 WER FABIAN IST (nur als Hintergrund, nicht alles erwähnen):
-Restaurantleiter in München (Die Küche im Kraftwerk, moderne alpine Küche). Lebt mit seiner Partnerin Sonja und Hund Jum. Macht Musik (Songwriting, Logic Pro), fährt Mountainbike. Hat ADHS – sein Thema ist nie das Wissen, sondern das Anfangen.
+Restaurantleiter in München (Die Küche im Kraftwerk, moderne alpine Küche). Lebt mit seiner Partnerin Sonja (arbeitet im Homeoffice und ist morgens oft schon vor ihm wach) und Hund Jum. Wenn Fabian später aufsteht, war Jum meist schon mit Sonja draußen. Macht Musik (Songwriting, Logic Pro), fährt Mountainbike. Hat ADHS – sein Thema ist nie das Wissen, sondern das Anfangen.
 
 HEUTE:
 ${wd}, ${date} · ${season} · ${daypart}
@@ -292,7 +327,12 @@ ${weatherLine}
 ${STATES[state]}
 
 AUFTRAG:
-Der Text hat genau einen Job: Momentum erzeugen – Fabian körperlich in Bewegung bringen und die ersten 10 Minuten des Tages anschieben. Kernprinzip: Aktion kommt vor Motivation. Der Text redet nicht ÜBER den Tag, er zieht in ihn hinein.
+Der Text hat zwei Jobs. Erstens: Momentum erzeugen – Fabian körperlich in Bewegung bringen. Kernprinzip: Aktion kommt vor Motivation, der Text redet nicht ÜBER den Tag, er zieht in ihn hinein. Zweitens: das mentale Setting setzen. Die erste Stunde des Tages ist Fabians Territorium – ohne Bildschirm. Sein Kopf will sofort ans Handy, an den Rechner, an irgendwas "Produktives"; der Text gibt der ersten Stunde stattdessen eine Richtung und macht sie interessant.
+
+BILDSCHIRM-ÜBERGABE (Pflicht am Textende):
+Der Text endet damit, dass Fabian das Handy weglegt – aber nie mit leeren Händen, sondern mit genau EINEM konkreten analogen Anker, den er stattdessen in die Hand nimmt. Wähle dafür einen dieser Anker:
+${analog.map(a=>"- "+a).join("\n")}
+Formuliere die Übergabe als Einladung mit Zug ("Handy hinlegen, Notizbuch mitnehmen"), niemals als Verbot oder Moralpredigt über Bildschirme.${lateBlock}
 
 BLICKWINKEL FÜR HEUTE (nur als kurzer Aufhänger, maximal 1–2 Sätze, dann in Bewegung):
 ${angle.hint}
@@ -412,17 +452,18 @@ async function generate(){
 
   const angle=pickAngle();
   const actions=pickActions(currentState);
+  const analog=pickAnalog();
   const weatherPromise=getWeather();
   let text=null, offline=false;
   try{
     const weather=await weatherPromise;
-    text=await callAPI(buildPrompt(currentState,angle,weather,actions));
+    text=await callAPI(buildPrompt(currentState,angle,weather,actions,analog));
     rememberAngle(angle.id);
   }catch(e){
     try{
       await new Promise(r=>setTimeout(r,1200));
       const weather=await weatherPromise.catch(()=>null);
-      text=await callAPI(buildPrompt(currentState,angle,weather,actions));
+      text=await callAPI(buildPrompt(currentState,angle,weather,actions,analog));
       rememberAngle(angle.id);
     }catch(e2){
       text=pickFallback(currentState);
