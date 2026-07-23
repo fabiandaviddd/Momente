@@ -133,13 +133,13 @@
 
 <!-- TEXT -->
 <div class="screen text-screen" id="s-text">
-  <div class="loading" id="loading" hidden>
+  <div class="loading" id="loading" style="display:none">
     <div><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
     <p class="loading-line">Der Text entsteht …</p>
   </div>
-  <p class="morning-text" id="morning-text" hidden></p>
-  <div class="text-actions" id="text-actions" hidden>
-    <span class="offline-note" id="offline-note" hidden>Aus dem Vorrat – gerade keine Verbindung.</span>
+  <p class="morning-text" id="morning-text" style="display:none"></p>
+  <div class="text-actions" id="text-actions" style="display:none">
+    <span class="offline-note" id="offline-note" style="display:none">Aus dem Vorrat – gerade keine Verbindung.</span>
     <button class="quiet" id="btn-refresh">Anders formulieren</button>
     <button class="quiet strong" id="btn-done">Das reicht mir</button>
   </div>
@@ -276,12 +276,16 @@ async function callAPI(prompt){
   return t;
 }
 
+function setVisible(id, on, display){
+  $(id).style.setProperty("display", on ? (display||"block") : "none", "important");
+}
+
 async function generate(){
   show("s-text");
-  $("loading").hidden=false;
-  $("morning-text").hidden=true;
-  $("text-actions").hidden=true;
-  $("offline-note").hidden=true;
+  setVisible("loading", true, "flex");
+  setVisible("morning-text", false);
+  setVisible("text-actions", false);
+  setVisible("offline-note", false);
 
   const angle=pickAngle();
   let text=null, offline=false;
@@ -298,12 +302,12 @@ async function generate(){
       offline=true;
     }
   }
-  $("loading").hidden=true;
+  setVisible("loading", false);
   $("morning-text").textContent=text;
-  $("morning-text").hidden=false;
-  $("text-actions").hidden=false;
-  $("offline-note").hidden=!offline;
-  $("btn-refresh").style.display=refreshed?"none":"";
+  setVisible("morning-text", true);
+  setVisible("text-actions", true, "flex");
+  setVisible("offline-note", offline, "block");
+  setVisible("btn-refresh", !refreshed, "");
 }
 
 /* ── Navigation ── */
