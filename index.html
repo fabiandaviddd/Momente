@@ -122,16 +122,6 @@
   </button>
 </div>
 
-<!-- FRAGE -->
-<div class="screen center" id="s-ask">
-  <p class="ask-q">Heute?</p>
-  <div class="row">
-    <button class="btn" data-day="arbeit">Arbeit</button>
-    <button class="btn" data-day="frei">Frei</button>
-  </div>
-  <button class="quiet" id="ask-back">zurück</button>
-</div>
-
 <!-- TEXT -->
 <div class="screen text-screen" id="s-text">
   <div class="loading" id="loading" style="display:none">
@@ -154,7 +144,7 @@
    zuletzt genutzte Blickwinkel, zuletzt genutzte Vorratstexte. */
 
 const $ = (id) => document.getElementById(id);
-const screens = ["s-setup","s-home","s-ask","s-text"];
+const screens = ["s-setup","s-home","s-text"];
 function show(id){ screens.forEach(s=>$(s).classList.toggle("active",s===id)); }
 
 const LS_KEY="momente_key", LS_RECENT="momente_recent", LS_FB="momente_fb_recent";
@@ -173,29 +163,21 @@ const ANGLES=[
 ];
 
 /* Vorrat für Momente ohne Netz oder ohne Key – gleiche Regeln: warm, Zug nach vorn, Momentum-Kette. */
-const FALLBACK={
- arbeit:[
-"Der Laden macht heute auf – mit dir oder ohne dich wach. Also: Decke weg, Füße auf den Boden, das ist der teuerste Schritt des Tages, alle danach sind billiger. Fenster auf, einmal tief die Münchner Luft, und dann direkt zur Kaffeemaschine, bevor der Kopf mitreden will. Wenn das Wasser läuft, bist du schon drin im Tag.",
-"Mise en place beginnt nicht in der Küche, sie beginnt hier: aufsetzen, Füße raus, stehen. Mehr braucht der Anfang nicht. Geh ins Bad, Wasser ins Gesicht, kalt genug, dass der Körper versteht, was der Kopf noch nicht weiß – es geht los. Der erste Handgriff zieht den zweiten von allein nach.",
-"Jum würde jetzt nicht verhandeln. Augen auf, strecken, zur Tür – seine ganze Morgenroutine, seit Jahren erfolgreich. Leih sie dir: aufsetzen, einmal lang strecken, aufstehen. Bis der Kaffee durchgelaufen ist, hast du das Schwerste des Tages schon hinter dir, und es ist nicht mal acht.",
-"Ein Körper in Ruhe bleibt in Ruhe – bis einer die Decke wegzieht. Sei du der, der zieht. Füße auf den Boden, ans Fenster, aufmachen. Die Luft macht den Rest. Dann Wasser aufsetzen und beim Warten einmal durchstrecken – wenn die Maschine fertig ist, bist du es auch.",
-"Der erste Take muss nicht gut sein, er muss nur laufen. Also aufnehmen: aufstehen, Fenster auf, Wasser trinken – das ist deine erste Spur heute, roh und völlig okay. Der Rest des Tages wird darüber gelayert. Aber ohne erste Spur kein Song, also los, Füße zuerst.",
-"Zehn Minuten gehören dir, bevor das Restaurant auch nur weiß, dass du wach bist. Hol sie dir: raus aus dem Bett, Fenster auf, Glas Wasser. Drei Züge, keine Entscheidungen, kein Handy. Was jetzt passiert, hat der Tag dir schon nicht mehr weggenommen.",
- ],
- frei:[
-"Freier Tag heißt nicht langsamer Start – es heißt, der Schwung gehört heute komplett dir. Also gleiche Physik wie immer: Füße auf den Boden, das ist der teure Schritt. Fenster auf, schauen, was das Licht heute vorhat. Dann Wasser, und beim ersten Schluck entscheiden, wohin der Schwung heute fließt.",
-"Jum weiß nicht, dass frei ist. Für ihn gilt: Augen auf, strecken, Tür. Mach's wie er – aufsetzen, lang strecken, aufstehen. Die Belohnung für freie Tage gibt's nicht im Bett, sie liegt draußen rum und wartet, dass ihr zwei sie abholt.",
-"Ein freier Tag ist ein leeres Arrangement – und du weißt, wie man eins füllt: nicht durch Draufstarren, sondern mit der ersten Spur. Steh auf, Fenster auf, Kaffee ansetzen. Während er läuft, einmal strecken. Danach darfst du alles – aber erst mal das.",
-"Der Trail entscheidet sich nicht am Gipfel, er entscheidet sich beim Anrollen. Heute ist Anrollen: Decke weg, Füße runter, stehen. Ans Fenster, Luft rein. Wenn du beim Kaffee bist, rollt der Tag schon – und freie Tage, die früh rollen, werden die guten.",
-"Das Bett spielt heute seinen besten Trick: kein Termin, kein Grund. Aber du kennst den Trick, und er verliert gegen zwei Bewegungen – aufsetzen, aufstehen. Mehr hat es nicht. Fenster auf, Wasser trinken, und der freie Tag gehört dir statt der Matratze.",
-"Die erste Stunde eines freien Tages ist die wertvollste – danach wird er von allein kleiner. Also sichern: raus aus dem Bett, Fenster auf, einmal tief durchatmen, Wasser. Vier Schritte, zwei Minuten. Dann entscheide in Ruhe, was heute Spiel wird und was Pause.",
- ],
-};
+const FALLBACK=[
+"Ein Körper in Ruhe bleibt in Ruhe – bis einer die Decke wegzieht. Sei du der, der zieht. Füße auf den Boden, das ist der teuerste Schritt des Tages, alle danach sind billiger. Ans Fenster, aufmachen, die Luft macht den Rest. Dann Wasser aufsetzen und beim Warten einmal durchstrecken – wenn die Maschine fertig ist, bist du es auch.",
+"Jum würde jetzt nicht verhandeln. Augen auf, strecken, zur Tür – seine ganze Morgenroutine, seit Jahren erfolgreich. Leih sie dir: aufsetzen, einmal lang strecken, aufstehen. Bis der Kaffee durchgelaufen ist, hast du das Schwerste des Tages schon hinter dir.",
+"Der erste Take muss nicht gut sein, er muss nur laufen. Also aufnehmen: aufstehen, Fenster auf, Wasser trinken – das ist deine erste Spur heute, roh und völlig okay. Der Rest des Tages wird darüber gelayert. Ohne erste Spur kein Song, also los, Füße zuerst.",
+"Der Trail entscheidet sich nicht am Gipfel, er entscheidet sich beim Anrollen. Heute ist Anrollen: Decke weg, Füße runter, stehen. Ans Fenster, Luft rein. Wenn du beim Kaffee bist, rollt der Tag schon – und Tage, die früh rollen, werden die guten.",
+"Zehn Minuten gehören dir, bevor der Tag überhaupt weiß, dass du wach bist. Hol sie dir: raus aus dem Bett, Fenster auf, Glas Wasser. Drei Züge, keine Entscheidungen, kein Handy. Was jetzt passiert, kann dir keiner mehr wegnehmen.",
+"Das Bett spielt seinen besten Trick: noch fünf Minuten, die nie fünf bleiben. Du kennst den Trick, und er verliert gegen zwei Bewegungen – aufsetzen, aufstehen. Mehr hat es nicht. Fenster auf, Wasser trinken, und der Morgen gehört dir statt der Matratze.",
+"Mise en place beginnt nicht in der Küche, sie beginnt hier: aufsetzen, Füße raus, stehen. Mehr braucht der Anfang nicht. Ins Bad, Wasser ins Gesicht, kalt genug, dass der Körper versteht, was der Kopf noch nicht weiß – es geht los. Der erste Handgriff zieht den zweiten von allein nach.",
+"Die erste Bewegung ist die teuerste, danach wird jede billiger – das ist die ganze Physik des Morgens. Also investier sie jetzt: Füße auf den Boden. Schon fällt die zweite leichter: aufstehen, strecken. Und die dritte läuft von allein: Fenster auf, schauen, was das Licht heute vorhat.",
+];
 
 const WEEKDAYS=["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
 const seasonOf=(m)=> m>=2&&m<=4?"Frühling":m>=5&&m<=7?"Sommer":m>=8&&m<=10?"Herbst":"Winter";
 
-function buildPrompt(dayType, angle){
+function buildPrompt(angle){
   const now=new Date();
   const wd=WEEKDAYS[now.getDay()];
   const date=now.toLocaleDateString("de-DE",{day:"numeric",month:"long"});
@@ -208,7 +190,7 @@ WER FABIAN IST (nur als Hintergrund, nicht alles erwähnen):
 Restaurantleiter in München (Die Küche im Kraftwerk, moderne alpine Küche). Lebt mit seiner Partnerin Sonja und Hund Jum. Macht Musik (Songwriting, Logic Pro), fährt Mountainbike. Hat ADHS – sein Thema ist nie das Wissen, sondern das Anfangen.
 
 HEUTE:
-${wd}, ${date} · ${season} · ${daypart} · ${dayType==="arbeit"?"Arbeitstag im Restaurant":"freier Tag"}
+${wd}, ${date} · ${season} · ${daypart}
 
 SITUATION UND AUFTRAG:
 Fabian liegt noch im Bett oder ist gerade aufgestanden. Der Text hat genau einen Job: Momentum erzeugen – ihn körperlich in Bewegung bringen und die ersten 10 Minuten des Tages anschieben. Kernprinzip: Aktion kommt vor Motivation. Der Text redet nicht ÜBER den Tag, er zieht in ihn hinein.
@@ -219,7 +201,7 @@ ${angle.hint}
 REGELN – alle verbindlich:
 - Deutsch, du-Form, 60–100 Wörter, ein Absatz oder zwei kurze.
 - Ton: warm, aber mit Zug nach vorn. Kurze Sätze, starke Verben, Tempo. Wie ein guter Freund, der schon in der Küche steht und ruft. Nie fordernd, nie Drill – aber auch nicht meditativ. Kein Betrachten, kein Innehalten, kein "spür mal".
-- Herzstück ist eine MOMENTUM-KETTE: 2–3 winzige Handlungen, die direkt aufeinander aufbauen und ihn vom Bett in den Tag ziehen. Die erste ist sofort machbar (aufsetzen, Füße auf den Boden, Fenster auf), jede weitere folgt natürlich aus der vorherigen. Als fließender Zug formuliert, nicht als Liste oder Anleitung. Die Kette passt zu ${dayType==="arbeit"?"einem Arbeitstag":"einem freien Tag"}.
+- Herzstück ist eine MOMENTUM-KETTE: 2–3 winzige Handlungen, die direkt aufeinander aufbauen und ihn vom Bett in den Tag ziehen. Die erste ist sofort machbar (aufsetzen, Füße auf den Boden, Fenster auf), jede weitere folgt natürlich aus der vorherigen. Als fließender Zug formuliert, nicht als Liste oder Anleitung. Die Kette ist universell – sie funktioniert an jedem Morgen, egal was danach kommt.
 - Der erste Satz muss sofort ziehen – kein Aufwärmen, kein Beschreiben der Morgenstimmung als Selbstzweck.
 - NIEMALS erklären, warum etwas wichtig ist. Keine Produktivitätsfloskeln, keine Zitate, kein Pathos, keine Kalendersprüche, kein "Du schaffst das!".
 - Kein "Guten Morgen Fabian!"-Einstieg als Floskel – fang mitten im Zug an.
@@ -230,7 +212,7 @@ Antworte NUR mit dem Text selbst, nichts davor oder danach.`;
 }
 
 /* ── Zustand ── */
-let dayType="arbeit", refreshed=false;
+let refreshed=false;
 
 function getRecent(k){ try{return JSON.parse(localStorage.getItem(k))||[]}catch(e){return[]} }
 function setRecent(k,arr){ try{localStorage.setItem(k,JSON.stringify(arr))}catch(e){} }
@@ -244,13 +226,13 @@ function pickAngle(){
 function rememberAngle(id){
   setRecent(LS_RECENT,[id,...getRecent(LS_RECENT).filter(x=>x!==id)].slice(0,5));
 }
-function pickFallback(dt){
-  const pool=FALLBACK[dt];
+function pickFallback(){
   const recent=getRecent(LS_FB);
-  const idxs=pool.map((_,i)=>dt+i).filter(x=>!recent.includes(x));
-  const chosenKey=(idxs.length?idxs:pool.map((_,i)=>dt+i))[Math.floor(Math.random()*(idxs.length||pool.length))];
-  setRecent(LS_FB,[chosenKey,...recent.filter(x=>x!==chosenKey)].slice(0,7));
-  return pool[parseInt(chosenKey.replace(dt,""),10)];
+  const idxs=FALLBACK.map((_,i)=>i).filter(i=>!recent.includes(i));
+  const pool=idxs.length?idxs:FALLBACK.map((_,i)=>i);
+  const i=pool[Math.floor(Math.random()*pool.length)];
+  setRecent(LS_FB,[i,...recent.filter(x=>x!==i)].slice(0,5));
+  return FALLBACK[i];
 }
 
 async function callAPI(prompt){
@@ -291,15 +273,15 @@ async function generate(){
   const angle=pickAngle();
   let text=null, offline=false;
   try{
-    text=await callAPI(buildPrompt(dayType,angle));
+    text=await callAPI(buildPrompt(angle));
     rememberAngle(angle.id);
   }catch(e){
     try{
       await new Promise(r=>setTimeout(r,1200));
-      text=await callAPI(buildPrompt(dayType,angle));
+      text=await callAPI(buildPrompt(angle));
       rememberAngle(angle.id);
     }catch(e2){
-      text=pickFallback(dayType);
+      text=pickFallback();
       offline=true;
     }
   }
@@ -312,11 +294,7 @@ async function generate(){
 }
 
 /* ── Navigation ── */
-$("go-morgen").onclick=()=>show("s-ask");
-$("ask-back").onclick=()=>show("s-home");
-document.querySelectorAll("[data-day]").forEach(b=>{
-  b.onclick=()=>{ dayType=b.dataset.day; refreshed=false; generate(); };
-});
+$("go-morgen").onclick=()=>{ refreshed=false; generate(); };
 $("btn-refresh").onclick=()=>{ refreshed=true; generate(); };
 $("btn-done").onclick=()=>show("s-home");
 
