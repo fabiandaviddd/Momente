@@ -33,7 +33,6 @@
   }
   .screen.active { display:flex; }
   .screen.center { align-items:center; justify-content:center; }
-  .center-col { display:flex; flex-direction:column; align-items:center; gap:20px; margin:auto 0; }
   .fadein { animation:fi .5s ease both; }
   @keyframes fi { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
 
@@ -83,7 +82,14 @@
     .glow{animation:none!important}
     .dot{animation:none!important}
     .morning-text .w{opacity:1;animation:none}
+    .tech-label{opacity:1!important}
+    .text-actions{opacity:1!important}
   }
+  .tech-label {
+    font-size:12.5px; color:var(--grau); letter-spacing:.03em;
+    opacity:0; transition:opacity .6s ease;
+  }
+  .tech-label.visible { opacity:1; }
   .text-actions { display:flex; gap:18px; align-items:center; border-top:1px solid var(--linie); padding-top:18px; flex-wrap:wrap; opacity:0; transition:opacity .6s ease; }
   .text-actions.visible { opacity:1; }
   .offline-note { font-size:12.5px; color:var(--grau); width:100%; }
@@ -103,8 +109,6 @@
   }
   .setup input:focus { outline:none; border-color:var(--akzent); }
   .hint { font-size:12.5px; color:var(--grau); }
-
-  .err { color:var(--grau); font-size:16px; text-align:center; max-width:26ch; line-height:1.6; }
 
   .corner { position:fixed; bottom:calc(14px + env(safe-area-inset-bottom)); right:16px; }
   button:focus-visible, input:focus-visible { outline:2px solid var(--akzent); outline-offset:3px; }
@@ -149,6 +153,7 @@
     <p class="loading-line">Der Text entsteht …</p>
   </div>
   <p class="morning-text" id="morning-text" style="display:none"></p>
+  <p class="tech-label" id="tech-label" style="display:none"></p>
   <div class="text-actions" id="text-actions" style="display:none">
     <span class="offline-note" id="offline-note" style="display:none">Aus dem Vorrat – gerade keine Verbindung.</span>
     <button class="quiet" id="btn-refresh">Anders formulieren</button>
@@ -159,10 +164,13 @@
 <button class="quiet corner" id="btn-settings" aria-label="Einstellungen">⋯</button>
 
 <script>
-/* ═══ MOMENTE v2 ═══
-   Check-in (Arousal ist die stärkste Stellgröße) → Wetter
-   automatisch (München) → Text-Strategie passend zum Zustand.
-   Kein Tracking, kein Verlauf. */
+/* ═══════════════════════════════════════════════════════════
+   MOMENTE v4 · Technik des Tages
+   Der Rahmen bleibt, der Inhalt rotiert: eine Trainer-Stimme,
+   täglich ein anderes evidenzbasiertes Werkzeug.
+   Kein Tracking, kein Verlauf. Spät-Block: deaktiviert
+   (Testphase – jede Tageszeit gilt als "gerade aufgestanden").
+   ═══════════════════════════════════════════════════════════ */
 
 const $ = (id) => document.getElementById(id);
 const screens = ["s-setup","s-home","s-checkin","s-text"];
@@ -171,23 +179,51 @@ function setVisible(id, on, display){
   $(id).style.setProperty("display", on ? (display||"block") : "none", "important");
 }
 
-const LS_KEY="momente_key", LS_RECENT="momente_recent", LS_FB="momente_fb_recent";
+const LS_KEY="momente_key", LS_T="momente_t_recent", LS_ACT="momente_act_recent", LS_AN="momente_an_recent", LS_FB="momente_fb_recent";
 
-const ANGLES=[
- {id:"kueche",hint:"Küchen-Energie: Der Laden macht auf, ob du bereit bist oder nicht – Mise en place beginnt mit dem ersten Handgriff, und der erste Handgriff heute ist aufstehen."},
- {id:"musik",hint:"Musik-Logik: Kein Song entsteht im Kopf, er entsteht, wenn die erste Spur läuft – der Tag genauso, erst der erste Take, dann wird's gut."},
- {id:"berg",hint:"Trail-Logik: Anrollen ist alles – die ersten Meter entscheiden nicht, wie die Tour wird, aber ohne sie gibt es keine. Erst treten, dann denken."},
- {id:"jum",hint:"Jums Morgenlogik: Ein Hund verhandelt nicht mit dem Bett – Augen auf, strecken, zur Tür. Diese Klarheit heute ausleihen."},
- {id:"schwung",hint:"Physik des Morgens: Ein Körper in Bewegung bleibt in Bewegung – die erste Bewegung ist die teuerste, danach wird jede billiger."},
- {id:"spiel",hint:"Eine winzige, spielerische Mini-Challenge mit Tempo – etwas in den nächsten 60 Sekunden schaffen, augenzwinkernd, ohne Punkte."},
- {id:"vorsprung",hint:"Der Vorsprungs-Gedanke: Was in den ersten 10 Minuten passiert, gehört schon dir, bevor der Tag überhaupt Ansprüche stellt."},
- {id:"humor",hint:"Warmer, trockener Humor mit Zug – das Bett als charmanter Gegner, der heute verliert."},
- {id:"saison",hint:"Die Jahreszeit heute in München als Startsignal – das Licht wartet draußen, nicht im Schlafzimmer."},
- {id:"koerper",hint:"Körper zuerst, Kopf später – der Morgen wird nicht im Kopf entschieden, sondern in den Füßen. Füße auf den Boden, der Rest folgt."},
+function getRecent(k){ try{return JSON.parse(localStorage.getItem(k))||[]}catch(e){return[]} }
+function setRecent(k,arr){ try{localStorage.setItem(k,JSON.stringify(arr))}catch(e){} }
+
+/* ── Der Werkzeugkasten: 9 Techniken ── */
+const TECHNIQUES=[
+ {id:"wenndann", name:"Wenn-Dann-Ankerplan", states:["gehtso","wach"],
+  desc:`Wenn-Dann-Ankerplan (Implementation Intentions). Fabians fester Plan lautet wörtlich: "Wenn meine Füße den Boden berühren, dann öffne ich das Fenster." Dieser Plan ist IMMER derselbe – er soll sich durch tägliche Wiederholung einbrennen, bis der Reiz die Handlung von selbst auslöst. Baue den Text um genau diesen Satz, erfinde keinen neuen Plan, und erwähne beiläufig, dass die Wiederholung Absicht ist.`},
+ {id:"laut", name:"Laut aussprechen", states:["verschlafen","gehtso","wach"],
+  desc:`Laut aussprechen (Externalisieren). Fabian sagt den ersten Schritt hörbar an, bevor der innere Verhandler wach wird – z.B. "Ich steh jetzt auf und öffne das Fenster." Was ausgesprochen ist, ist aus dem Kopf raus und im Raum verbindlich: Selbststeuerung nach außen verlagert.`},
+ {id:"klein", name:"Lächerlich kleiner Schritt", states:["verschlafen","gehtso","wach"],
+  desc:`Lächerlich kleiner Schritt (Verhaltensaktivierung). Der Einstieg wird so klein gemacht, dass Nicht-Tun mehr Aufwand wäre – "nur aufsetzen" ist ein vollwertiger Auftrag, ohne Versprechen, was danach kommt. Der nächste Schritt ergibt sich von allein.`},
+ {id:"koerper", name:"Körper-Primer", states:["verschlafen","gehtso","wach"],
+  desc:`Körper-Primer (akute Bewegung). Ein bis zwei Minuten einfache Bewegung direkt neben dem Bett – zehn langsame Kniebeugen, ein paar Liegestütze. Langsam ist ausdrücklich erlaubt. Bringt Kreislauf und Botenstoffe in Gang – formuliere das ehrlich-ungefähr, keine präzisen Neuro-Zahlen erfinden.`},
+ {id:"licht", name:"Licht zuerst", states:["verschlafen","gehtso","wach"],
+  desc:`Licht zuerst (zirkadianes Signal). Ans offene Fenster oder auf den Balkon, zwei Minuten Tageslicht ins Gesicht – stellt die bei ADHS typisch nach hinten verschobene innere Uhr. Wichtig: Auch bedeckter Himmel liefert am offenen Fenster ein Vielfaches der Innenraum-Lichtdosis; bei trübem Wetter darf der Text genau das sagen.`},
+ {id:"countdown", name:"Countdown-Start", states:["gehtso","wach"],
+  desc:`Countdown-Start. Von fünf rückwärts zählen – bei null bewegt sich der Körper (Füße auf den Boden, aufstehen), ohne Diskussion. Der Countdown besetzt genau den Moment, in dem sonst die Verhandlungsschleife anspringt.`},
+ {id:"buendel", name:"Versuchungs-Bündelung", states:["gehtso","wach"],
+  desc:`Versuchungs-Bündelung. Etwas Angenehmes wird exklusiv ans Aufstehen gekoppelt: Der Lieblingssong läuft nur, solange Fabian sich bewegt und anzieht – danach ist er aus. Die Belohnung hängt am Tun, nicht am Aufschieben.`},
+ {id:"sieg", name:"Kleiner Sieg zuerst", states:["gehtso","wach"],
+  desc:`Kleiner Sieg zuerst (Erfolgsspirale). Eine Sache wählen, die in sechzig Sekunden KOMPLETT fertig ist – Bett machen, Fenster auf, ein großes Glas Wasser – und sie ganz abschließen. Momentum entsteht aus Abschluss, nicht aus Anfang.`},
+ {id:"sozial", name:"Sozialer Start", states:["gehtso","wach"],
+  desc:`Sozialer Start (Body Doubling light). Sonja ist im Homeoffice und meist schon wach: Fabian sagt ihr in einem Satz, was sein erster Schritt heute ist, oder macht die erste Handlung dort, wo sie ist. Ein Mitwisser macht den Anfang leichter – sanfte Verbindlichkeit, null Druck.`},
 ];
 
-/* Handlungs-Pool – die App wählt täglich andere Bausteine.
-   low = auch für verschlafene Morgen geeignet (kaum kognitive Last) */
+function pickTechnique(state){
+  const pool=TECHNIQUES.filter(t=>t.states.includes(state));
+  const blockN = state==="verschlafen" ? 1 : 4;
+  const recent=getRecent(LS_T).slice(0,blockN);
+  let fresh=pool.filter(t=>!recent.includes(t.id));
+  if(fresh.length===0) fresh=pool;
+  const t=fresh[Math.floor(Math.random()*fresh.length)];
+  setRecent(LS_T,[t.id,...getRecent(LS_T).filter(x=>x!==t.id)].slice(0,4));
+  return t;
+}
+
+/* ── Gold-Beispiele: Form zeigen, ohne Kopier-Kollision ── */
+const GOLDS=[
+ {tech:"sieg", text:`Wach genug zum Lesen – das reicht als Start. Such dir eine Sache, die in einer Minute komplett fertig ist: Bett machen, Fenster auf, ein großes Glas Wasser. Eine davon, ganz zu Ende. Dein Gehirn springt auf Abgeschlossenes an – ein erledigtes Ding zieht das nächste nach. Dann Handy in die Schublade und mit dem Notizbuch in die Küche.`},
+ {tech:"countdown", text:`Der Kopf ist wach, der Rest liegt noch. Zähl rückwärts von fünf – bei null stehen die Füße auf dem Boden. Nicht verhandeln, zählen. Der Countdown besetzt die Stelle, an der sonst die Ausreden entstehen. Danach Fenster auf, anziehen, und das Handy bleibt im Schlafzimmer, während du mit dem Tee auf den Balkon gehst.`},
+];
+
+/* ── Handlungs-Bausteine ── */
 const ACTIONS=[
  {t:"Fenster weit auf, Licht und Luft rein", low:true},
  {t:"ein großes Glas Wasser trinken", low:true},
@@ -196,19 +232,35 @@ const ACTIONS=[
  {t:"Vorhänge ganz auf, alles Licht rein", low:true},
  {t:"einmal lang und ausgiebig strecken", low:true},
  {t:"30 Sekunden summen, tiefer Ton", low:true},
- {t:"zweimal tief einatmen, einmal lang ausatmen (Seufzer)", low:true},
+ {t:"zweimal tief einatmen, einmal lang ausatmen", low:true},
  {t:"Schultern kreisen, Nacken lang machen", low:true},
- {t:"10 Liegestütze"},
- {t:"20 Kniebeugen"},
+ {t:"zehn langsame Kniebeugen neben dem Bett"},
+ {t:"zehn Liegestütze"},
  {t:"kurz auf den Balkon oder vor die Tür treten"},
  {t:"einen Lieblingssong laut anmachen"},
  {t:"das Bett machen"},
  {t:"in 60 Sekunden angezogen sein"},
  {t:"duschen, am Ende kurz kalt"},
  {t:"Jum begrüßen und die Morgenrunde starten", early:true},
- {t:"einmal quer durchs Zimmer tanzen"},
+ {t:"kurz bei Sonja vorbeischauen"},
 ];
-/* Analoge Anker – womit die erste bildschirmfreie Stunde gefüllt wird */
+function pickActions(state){
+  const hour=new Date().getHours();
+  let pool=state==="verschlafen"?ACTIONS.filter(a=>a.low):ACTIONS;
+  pool=pool.filter(a=>a.early?hour<8:true);
+  const recent=getRecent(LS_ACT);
+  let fresh=pool.filter(a=>!recent.includes(a.t));
+  if(fresh.length<3) fresh=pool;
+  const chosen=[];
+  const copy=[...fresh];
+  while(chosen.length<3&&copy.length){
+    chosen.push(copy.splice(Math.floor(Math.random()*copy.length),1)[0]);
+  }
+  setRecent(LS_ACT,[...chosen.map(a=>a.t),...recent].slice(0,6));
+  return chosen;
+}
+
+/* ── Analoge Anker ── */
 const ANALOG=[
  "ein paar Minuten Klavier – das Alfred's-Buch liegt bereit",
  "eine Songidee ins Notizbuch statt in Logic",
@@ -221,63 +273,20 @@ const ANALOG=[
  "mit Jum spielen oder eine Extra-Runde drehen",
  "kurz bei Sonja vorbeischauen, bevor ihr Arbeitstag richtig losgeht",
 ];
-const LS_AN="momente_an_recent";
 function pickAnalog(){
   const recent=getRecent(LS_AN);
   let fresh=ANALOG.filter(a=>!recent.includes(a));
-  if(fresh.length<3) fresh=[...ANALOG];
+  if(fresh.length<2) fresh=[...ANALOG];
   const chosen=[];
   const copy=[...fresh];
-  while(chosen.length<3&&copy.length){
+  while(chosen.length<2&&copy.length){
     chosen.push(copy.splice(Math.floor(Math.random()*copy.length),1)[0]);
   }
   setRecent(LS_AN,[...chosen,...recent].slice(0,5));
   return chosen;
 }
 
-const LS_ACT="momente_act_recent";
-function pickActions(state){
-  const hour=new Date().getHours();
-  let pool=state==="verschlafen"?ACTIONS.filter(a=>a.low):ACTIONS;
-  pool=pool.filter(a=>a.early?hour<8:true);
-  const recent=getRecent(LS_ACT);
-  let fresh=pool.filter(a=>!recent.includes(a.t));
-  if(fresh.length<4) fresh=pool;
-  const chosen=[];
-  const copy=[...fresh];
-  while(chosen.length<3&&copy.length){
-    chosen.push(copy.splice(Math.floor(Math.random()*copy.length),1)[0]);
-  }
-  setRecent(LS_ACT,[...chosen.map(a=>a.t),...recent].slice(0,8));
-  return chosen;
-}
-
-/* Die Stimmen – die App würfelt täglich, wer spricht */
-const VOICES=[
- {id:"chef",desc:"Der Küchenchef: kurz angebunden, herzlich-ruppig, denkt in Gastro-Sprache (Mise en place, Service, Pass, Station). Sätze wie Ansagen in einer lauten Küche, aber mit Herz unterm Kittel. Tonprobe für die Haltung (Wörter NICHT kopieren): 'Mise en place. Das Bett ist abgeräumt. Weiter.'"},
- {id:"kumpel",desc:"Der trockene Kumpel: lakonisch, ironisch, nimmt das Bett und den inneren Verhandler kein bisschen ernst – Fabian als Person aber schon. Untertreibt lieber, als zu pushen. Tonprobe für die Haltung (Wörter NICHT kopieren): 'Dein Bett hat wieder Argumente? Es hat eine Matratze, keinen Doktortitel.'"},
- {id:"kommentator",desc:"Der Kommentator: Sportreporter-Energie, kommentiert live das Duell 'Fabian gegen den Morgen'. Dramatik mit Augenzwinkern, kurze atemlose Sätze, Spielstand-Logik. Tonprobe für die Haltung (Wörter NICHT kopieren): 'Bewegung unter der Decke – die Füße suchen den Boden, das Publikum hält die Luft an!'"},
- {id:"wette",desc:"Die Wette: frech, direkt, fordert Fabian heraus und traut ihm dabei sichtbar was zu. Setzt kleine Einsätze, stichelt, grinst zwischen den Zeilen. Tonprobe für die Haltung (Wörter NICHT kopieren): 'Wetten, du stehst nicht in 40 Sekunden am Fenster? Na los, beweis mir das Gegenteil.'"},
- {id:"poet",desc:"Der eilige Poet: ein einziges starkes Bild, dann ein klarer Befehl. Der kürzeste von allen – jedes Wort muss seinen Platz verdienen, kein Schnörkel. Tonprobe für die Haltung (Wörter NICHT kopieren): 'Das Licht steht schon mitten im Zimmer und wartet. Steh auf, es hat nicht ewig Zeit.'"},
-];
-const LS_V="momente_v_recent";
-function pickVoice(){
-  const recent=getRecent(LS_V);
-  let fresh=VOICES.filter(v=>!recent.includes(v.id));
-  if(fresh.length===0) fresh=VOICES;
-  const v=fresh[Math.floor(Math.random()*fresh.length)];
-  setRecent(LS_V,[v.id,...recent.filter(x=>x!==v.id)].slice(0,3));
-  return v;
-}
-
-/* Zustands-Strategien – abgeleitet aus Sleep-Inertia- und Arousal-Forschung */
-const STATES={
- verschlafen:`ZUSTAND: verschlafen – tiefe Schlaf-Trägheit, das Gehirn lädt noch. Dimm deine Stimme: leiser, langsamer, geduldiger – aber sie bleibt unverkennbar sie selbst. Sehr kurze Sätze. Höchstens eine Idee im ganzen Text. Handlungen nur körperlich (Licht, kaltes Wasser, strecken, stehen), nichts, das Nachdenken verlangt. Länge: 40–70 Wörter.`,
- gehtso:`ZUSTAND: wach, aber der Motor läuft noch nicht. Deine Stimme in Normalform: Zug nach vorn, kurze Sätze, starke Verben. Länge: 70–110 Wörter.`,
- wach:`ZUSTAND: ausgeruht aufgewacht – Rückenwind. Dreh deine Stimme voll auf: Tempo ab dem ersten Satz, Challenge und Übermut ausdrücklich erlaubt. Länge: 60–120 Wörter.`,
-}
-
-/* Wetter: WMO-Codes → Beschreibung */
+/* ── Wetter (nur wenn bemerkenswert) ── */
 function weatherDesc(code){
   if(code===0) return "klarer Himmel";
   if(code<=2) return "leicht bewölkt";
@@ -307,102 +316,86 @@ async function getWeather(){
 const WEEKDAYS=["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
 const seasonOf=(m)=> m>=2&&m<=4?"Frühling":m>=5&&m<=7?"Sommer":m>=8&&m<=10?"Herbst":"Winter";
 
-function buildPrompt(state, voice, weather, actions, analog){
+const STATE_BRIEF={
+ verschlafen:`verschlafen – tiefe Schlaf-Trägheit, das Gehirn lädt noch. Sehr kurze Sätze (unter zehn Wörtern). Eine einzige Idee. Nichts, das Konstruieren oder Entscheiden verlangt. Länge: 35–60 Wörter. KEIN Mechanismus-Satz – anerkennen, Technik, fertig.`,
+ gehtso:`wach, aber der Motor läuft noch nicht. Zug nach vorn, kurze Sätze, starke Verben. Länge: 60–90 Wörter.`,
+ wach:`ausgeruht aufgewacht, Rückenwind. Direkteres Tempo – Schärfe durch Dichte, nicht durch Show. Länge: 60–100 Wörter.`,
+};
+
+/* ── Prompt: Stabiles zuerst, Heutiges zuletzt ── */
+function buildPrompt(state, tech, weather, actions, analog, isRetry){
   const now=new Date();
   const wd=WEEKDAYS[now.getDay()];
   const date=now.toLocaleDateString("de-DE",{day:"numeric",month:"long"});
   const season=seasonOf(now.getMonth());
+  const gold=GOLDS.find(g=>g.tech!==tech.id)||GOLDS[0];
   const weatherLine=(weather&&weather.notable)?`
-DRAUSSEN IN MÜNCHEN: ${weather.desc}, ${weather.temp}°C. Nutze das nur, wenn es dem Zug nach vorn dient – bei Regen die Gemütlichkeits-Falle umdrehen (Regen ist das Startsignal für drinnen), bei Kälte: Wärme entsteht durch Bewegung. Nie als Wetterbericht.`:"";
+Draußen in München: ${weather.desc}, ${weather.temp}°C – nur nutzen, wenn es dem Start dient (Regen: Startsignal für drinnen; Kälte: Wärme entsteht durch Bewegung). Nie als Wetterbericht.`:"";
+  const mechRule=state!=="verschlafen"?`
+Baue genau EINEN Mechanismus-Satz ein (max. 12 Wörter, Platz frei wählbar): warum dieses Werkzeug im ADHS-Gehirn greift – ehrlich-ungefähr, echte Begriffe, keine erfundene Präzision.`:"";
+  const retryLine=isRetry?`
 
-  /* TESTPHASE: Spät-Block deaktiviert – jede Tageszeit gilt als "gerade aufgestanden".
-     Wieder aktivieren, wenn die Grund-Texte sitzen. */
+ZUSATZ: Das ist der zweite Versuch. Gleiche Technik, aber ein spürbar anderer Zugang und andere konkrete Handlungen als eben.`:"";
 
-  return `Du schreibst Fabians Morgentext. Er hat gerade die Augen auf, das Handy in der Hand, der Tag hat noch nicht angefangen.
+  return `Du schreibst Fabians Morgentext – er hat gerade die Augen aufgemacht und das Handy in der Hand.
 
-WER FABIAN IST (Hintergrund, sparsam verwenden):
-Restaurantleiter in München (Die Küche im Kraftwerk, moderne alpine Küche). Partnerin Sonja arbeitet im Homeoffice und ist morgens oft vor ihm wach; steht Fabian später auf, war Hund Jum meist schon mit ihr draußen. Er macht Musik (Songwriting, Klavier, Logic), fährt Mountainbike. ADHS: Sein Thema ist nie das Wissen, sondern das Anfangen.
+DEINE STIMME:
+Wie ein guter Trainer vor der Einheit: ruhig, direkt, konkret, respektvoll. Kurz erklären, klar ansagen, fertig. Jede Handlung hat Ort und Objekt ("zehn Kniebeugen neben dem Bett", nicht "beweg dich kurz").
 
-HEUTE: ${wd}, ${date} · ${season}${weatherLine}
-
-DEINE STIMME HEUTE – du schreibst durchgehend als:
-${voice.desc}
-Die Stimme bestimmt Rhythmus, Wortwahl und Haltung des gesamten Textes.
-
-${STATES[state]}
-
-WAS DER TEXT ERREICHEN SOLL:
-1. Momentum: Aktion vor Motivation. Der Text zieht Fabian körperlich aus dem Bett – 1 bis 3 konkrete Handlungen, als Zug erzählt, nie als Checkliste oder Anleitung.
-2. Territorium: Die erste Stunde gehört Fabian, ohne Bildschirm. Irgendwo im Text – am Ende oder wo es die Stimme hergibt – legt er das Handy weg und hat stattdessen etwas Analoges in der Hand.
-
-HANDLUNGS-IDEEN (Inspiration – du darfst eigene erfinden, solange sie konkret, analog und direkt nach dem Aufstehen machbar sind):
-${actions.map(a=>a.t).join(" · ")}
-
-ANALOGE ANKER für die Handy-Übergabe (einen wählen oder einen eigenen erfinden, der zu Fabian passt):
-${analog.join(" · ")}
-
-HUMOR-ERLAUBNIS:
-Der Text darf Fabian zum Lachen bringen – Frotzelei unter besten Freunden ist ausdrücklich erwünscht. Aufs Korn genommen werden: das Bett, die Matratze, der innere Verhandler, die Situation. Nie Fabian als Person. Kein Drill, keine Beschämung, kein Vorwurf.
+SO KLINGT DAS – Beispiel von einem anderen Tag mit anderer Technik. Form und Haltung übernehmen, Inhalt und Formulierungen nicht:
+"${gold.text}"
 
 HARTE REGELN:
-- Deutsch, du-Form, ein Absatz oder zwei kurze. Länge laut Zustand.
-- Kaffee wird NIEMALS erwähnt.
-- Eine Hunderunde nur vorschlagen, wenn sie in den Handlungs-Ideen steht.
-- Keine Emojis, keine Listen, keine Überschriften. Ausrufezeichen sparsam (höchstens zwei).
-- Übernimm keine Formulierung aus diesem Briefing und keine Tonprobe wörtlich.
-- Verbrauchte Wendungen, verboten: "bevor irgendein Bildschirm angeht" · "Alles andere darf heute liegen bleiben" · "die eine Sache, die wirklich zählt" · "Das Fenster reicht" · "gehört dir" · "Füße auf den Boden" als Einstieg.
-- Kein Pathos, keine Kalendersprüche, keine Bildschirm-Moralpredigt, kein "Du schaffst das".
+1. Keine vermenschlichten Objekte – Bett, Licht, Matratze handeln nicht, reden nicht, wollen nichts.
+2. Kein Cheerleading ("Du schaffst das"), kein Pathos, keine Kalendersprüche.
+3. Kaffee wird niemals erwähnt. Eine Hunderunde nur, wenn sie unten in den Bausteinen steht.
+4. Keine Emojis, keine Listen, keine Überschriften; du-Form; höchstens ein Ausrufezeichen.
+5. Antworte NUR mit dem Text selbst, nichts davor oder danach.
 
-Antworte NUR mit dem Text selbst, nichts davor oder danach.`;
+FABIAN (sparsam einsetzen): Restaurantleiter in München. Partnerin Sonja arbeitet im Homeoffice und ist morgens meist vor ihm wach; steht er später auf, war Hund Jum schon mit ihr draußen. Macht Musik (Klavier, Songwriting), fährt Mountainbike. ADHS: Anfangen ist das Thema, nicht Wissen.
+
+HEUTE:
+${wd}, ${date} · ${season}${weatherLine}
+Zustand: ${STATE_BRIEF[state]}
+
+HEUTIGE TECHNIK – der ganze Text wird um genau dieses eine Werkzeug gebaut:
+${tech.desc}${mechRule}
+
+BAUSTEINE (Inspiration – eigene konkrete, analoge, sofort machbare Handlungen sind erlaubt): ${actions.map(a=>a.t).join(" · ")}
+
+Der Text sorgt außerdem dafür, dass Fabian am Ende das Handy weglegt und stattdessen etwas Analoges in der Hand hat (z.B. ${analog.join(" oder ")}) – diese Übergabe darf mit der Technik verschmelzen, wenn es passt.${retryLine}`;
 }
 
-/* Vorrat – je Zustand, für Momente ohne Netz oder Key */
+/* ── Vorrat (ohne Netz / ohne Key), technikbasiert ── */
 const FALLBACK={
  verschlafen:[
-"Noch nicht wach. Musst du auch nicht sein. Nur Füße auf den Boden. Gut. Jetzt zum Fenster, Licht rein. Das Gehirn kommt nach, versprochen. Kaltes Wasser ins Gesicht. Mehr war's nicht. Der Rest vom Morgen trägt dich jetzt.",
-"Schwerer Kopf, klarer Plan. Aufsetzen. Kurz sitzen bleiben. Jetzt stehen. Fenster auf – Luft und Licht machen die Arbeit. Wasser trinken, ein großes Glas. Das reicht als Anfang. Fahrt kommt von allein.",
-"Das ist Schlaf-Trägheit, kein Charakter. Sie geht von allein, schneller mit Bewegung. Also: Decke weg. Füße runter. Stehen. Einmal strecken, lang. Licht an oder Fenster auf. In zehn Minuten bist du ein anderer Mensch.",
-"Der Körper ist wach, das Gehirn lädt noch. Warte nicht drauf. Füße auf den Boden. Zum Fenster. Kaltes Wasser ins Gesicht. Drei Handgriffe, null Denken. Genau richtig für jetzt.",
+  {n:"Licht zuerst", t:"Noch halb im Schlafmodus. Das ist Schlaf-Trägheit, keine Schwäche. Steh auf und stell dich ans offene Fenster. Zwei Minuten Licht ins Gesicht. Auch bei Wolken wirkt das mehr als jede Lampe. Mehr ist gerade nicht verlangt. Handy weglegen, Wasser mit ans Fenster nehmen."},
+  {n:"Lächerlich kleiner Schritt", t:"Das Gehirn lädt noch. Der Auftrag ist winzig: aufsetzen. Nur aufsetzen. Wenn du sitzt: Füße raus, stehen. Kleiner geht ein Anfang nicht – genau deshalb funktioniert er. Handy auf den Tisch, einmal lang strecken."},
+  {n:"Körper-Primer", t:"Müde ist okay. Beweg dich trotzdem zuerst: zehn langsame Kniebeugen neben dem Bett. Nicht schnell, nur durchziehen. Der Kreislauf startet, der Kopf kommt nach. Danach ein großes Glas Wasser, und das Handy bleibt liegen."},
  ],
  gehtso:[
-"Ein Körper in Ruhe bleibt in Ruhe – bis einer die Decke wegzieht. Sei du der, der zieht. Füße auf den Boden, das ist der teuerste Schritt des Tages, alle danach sind billiger. Ans Fenster, aufmachen, die Luft macht den Rest. Dann ein großes Glas Wasser und einmal lang durchstrecken.",
-"Jum würde jetzt nicht verhandeln. Augen auf, strecken, zur Tür – seine ganze Morgenroutine, seit Jahren erfolgreich. Leih sie dir: aufsetzen, einmal lang strecken, aufstehen. Bis du im Bad warst, hast du das Schwerste des Tages schon hinter dir.",
-"Der erste Take muss nicht gut sein, er muss nur laufen. Also aufnehmen: aufstehen, Fenster auf, Wasser trinken – das ist deine erste Spur heute, roh und völlig okay. Der Rest des Tages wird darüber gelayert. Ohne erste Spur kein Song, also los, Füße zuerst.",
-"Der Trail entscheidet sich nicht am Gipfel, er entscheidet sich beim Anrollen. Heute ist Anrollen: Decke weg, Füße runter, stehen. Ans Fenster, Luft rein. Wenn du angezogen bist, rollt der Tag schon – und Tage, die früh rollen, werden die guten.",
+  {n:"Wenn-Dann-Ankerplan", t:"Wach, aber ohne Zug – der Moment für deinen Ankerplan: Wenn die Füße den Boden berühren, dann öffnest du das Fenster. Immer derselbe Satz, jeden Morgen, mit Absicht. Mit jeder Wiederholung übernimmt der Reiz die Arbeit, die sonst Willenskraft kostet. Also: Füße, Boden, Fenster. Danach Handy weg und Frühstück richtig machen."},
+  {n:"Laut aussprechen", t:"Sag den ersten Schritt laut, bevor du ihn machst: Ich steh jetzt auf und öffne das Fenster. Klingt seltsam, wirkt trotzdem – was ausgesprochen ist, ist aus dem Kopf raus und im Raum verbindlich. Dann tu genau das. Handy hinlegen, Notizbuch mitnehmen."},
+  {n:"Kleiner Sieg zuerst", t:"Such dir etwas, das in sechzig Sekunden komplett fertig ist: Bett machen, Fenster auf, ein großes Glas Wasser. Eine Sache, ganz zu Ende gebracht. Abgeschlossenes zieht das Nächste nach – so entsteht Schwung. Danach bleibt das Handy im Zimmer und du gehst duschen."},
+  {n:"Sozialer Start", t:"Sonja ist wahrscheinlich schon wach. Geh kurz rüber und sag ihr in einem Satz, was dein erster Schritt heute wird. Was ein anderer gehört hat, fängt sich leichter an. Das Handy bleibt dabei im Schlafzimmer."},
  ],
  wach:[
-"Wach? Dann nicht verschenken. Raus aus dem Bett, Fenster auf – die ersten zehn Minuten gehören dir, bevor der Tag Ansprüche stellt. Wasser, strecken, und dann direkt das erste Ding anfassen, das heute zählt. Mit Rückenwind startet man nicht langsam.",
-"Ausgeruht aufgewacht ist ein Vorsprung – nimm ihn mit. Füße runter, Fenster auf, einmal tief. Kleine Challenge: In sechzig Sekunden stehst du angezogen am offenen Fenster. Los. Der Tag kriegt dich heute in Bestform.",
-"Heute ist einer der Morgen, an denen es leicht geht – die sind zum Ausnutzen da. Aufstehen, Licht rein, Wasser. Und dann nicht trödeln: das Erste, worauf du Lust hast, sofort anfangen. Momentum plus Lust ist die beste Kombination, die dein Gehirn kennt.",
-"Der Motor läuft schon – fehlt nur das Losfahren. Decke weg, stehen, strecken. Fenster auf, kurz schauen, was der Tag vorhat. Dann zieh los, bevor der Schwung Fragen stellt. Tage wie heute fahren sich fast von allein.",
+  {n:"Countdown-Start", t:"Ausgeruht – nutz das sofort. Fünf, vier, drei, zwei, eins: Bei null stehen die Füße auf dem Boden. Nicht verhandeln, zählen. Der Countdown besetzt die Stelle, an der sonst Ausreden entstehen. Dann in einer Minute angezogen und mit dem Wasser auf den Balkon – ohne Handy."},
+  {n:"Versuchungs-Bündelung", t:"Heute läuft dein Lieblingssong – aber nur, solange du in Bewegung bist: aufstehen, anziehen, Fenster auf. Song aus, sobald du stehst und fertig bist. Die Belohnung hängt am Tun, so lernt das System schnell. Danach Handy weglegen, Gitarre in die Hand."},
+  {n:"Wenn-Dann-Ankerplan", t:"Rückenwind am Morgen – perfekt für den Ankerplan: Wenn die Füße den Boden berühren, dann Fenster auf. Jeden Morgen derselbe Satz, bis er von allein läuft. Heute mit Tempo: Füße, Boden, Fenster, fünf Minuten später stehst du angezogen in der Küche. Das Handy bleibt zurück."},
  ],
 };
-
-/* ── Zustand ── */
-let currentState="gehtso", refreshed=false;
-
-function getRecent(k){ try{return JSON.parse(localStorage.getItem(k))||[]}catch(e){return[]} }
-function setRecent(k,arr){ try{localStorage.setItem(k,JSON.stringify(arr))}catch(e){} }
-
-function pickAngle(){
-  const recent=getRecent(LS_RECENT);
-  const fresh=ANGLES.filter(a=>!recent.includes(a.id));
-  const pool=fresh.length?fresh:ANGLES;
-  return pool[Math.floor(Math.random()*pool.length)];
-}
-function rememberAngle(id){
-  setRecent(LS_RECENT,[id,...getRecent(LS_RECENT).filter(x=>x!==id)].slice(0,5));
-}
 function pickFallback(state){
   const pool=FALLBACK[state];
   const recent=getRecent(LS_FB);
   const keys=pool.map((_,i)=>state+i).filter(k=>!recent.includes(k));
   const use=keys.length?keys:pool.map((_,i)=>state+i);
   const k=use[Math.floor(Math.random()*use.length)];
-  setRecent(LS_FB,[k,...recent.filter(x=>x!==k)].slice(0,6));
+  setRecent(LS_FB,[k,...recent.filter(x=>x!==k)].slice(0,5));
   return pool[parseInt(k.replace(state,""),10)];
 }
 
+/* ── API ── */
 async function callAPI(prompt){
   const key=localStorage.getItem(LS_KEY);
   if(!key) throw new Error("kein Key");
@@ -427,12 +420,12 @@ async function callAPI(prompt){
   return t;
 }
 
-/* Wort-für-Wort-Fade */
+/* ── Wort-für-Wort-Fade ── */
 function renderFlowing(text){
   const el=$("morning-text");
   el.textContent="";
   const words=text.split(/\s+/);
-  const step=Math.min(70, Math.max(35, 4200/words.length)); // Gesamtdauer ~4 Sek, gedeckelt
+  const step=Math.min(70, Math.max(35, 4200/words.length));
   words.forEach((w,i)=>{
     const span=document.createElement("span");
     span.className="w";
@@ -444,48 +437,59 @@ function renderFlowing(text){
   return words.length*step + 700;
 }
 
-async function generate(){
+/* ── Ablauf ── */
+let currentState="gehtso", refreshed=false, lastTech=null;
+
+async function generate(isRetry){
   show("s-text");
   setVisible("loading", true, "flex");
   setVisible("morning-text", false);
+  setVisible("tech-label", false);
   setVisible("text-actions", false);
   setVisible("offline-note", false);
   $("text-actions").classList.remove("visible");
+  $("tech-label").classList.remove("visible");
 
-  const voice=pickVoice();
+  const tech=(isRetry&&lastTech)?lastTech:pickTechnique(currentState);
+  lastTech=tech;
   const actions=pickActions(currentState);
   const analog=pickAnalog();
   const weatherPromise=getWeather();
-  let text=null, offline=false;
+
+  let text=null, label=tech.name, offline=false;
   try{
     const weather=await weatherPromise;
-    text=await callAPI(buildPrompt(currentState,voice,weather,actions,analog));
+    text=await callAPI(buildPrompt(currentState,tech,weather,actions,analog,isRetry));
   }catch(e){
     try{
       await new Promise(r=>setTimeout(r,1200));
       const weather=await weatherPromise.catch(()=>null);
-      text=await callAPI(buildPrompt(currentState,voice,weather,actions,analog));
+      text=await callAPI(buildPrompt(currentState,tech,weather,actions,analog,isRetry));
     }catch(e2){
-      text=pickFallback(currentState);
-      offline=true;
+      const fb=pickFallback(currentState);
+      text=fb.t; label=fb.n; offline=true;
     }
   }
+
   setVisible("loading", false);
   setVisible("morning-text", true);
   const dur=renderFlowing(text);
+  $("tech-label").textContent="Heute: "+label;
+  setVisible("tech-label", true, "block");
   setVisible("offline-note", offline, "block");
   setVisible("btn-refresh", !refreshed, "");
   setVisible("text-actions", true, "flex");
-  setTimeout(()=>$("text-actions").classList.add("visible"), Math.min(dur, 5200));
+  const reveal=Math.min(dur, 5200);
+  setTimeout(()=>{ $("text-actions").classList.add("visible"); $("tech-label").classList.add("visible"); }, reveal);
 }
 
 /* ── Navigation ── */
 $("go-morgen").onclick=()=>show("s-checkin");
 $("checkin-back").onclick=()=>show("s-home");
 document.querySelectorAll("[data-state]").forEach(b=>{
-  b.onclick=()=>{ currentState=b.dataset.state; refreshed=false; generate(); };
+  b.onclick=()=>{ currentState=b.dataset.state; refreshed=false; generate(false); };
 });
-$("btn-refresh").onclick=()=>{ refreshed=true; generate(); };
+$("btn-refresh").onclick=()=>{ refreshed=true; generate(true); };
 $("btn-done").onclick=()=>show("s-home");
 
 /* ── Setup / Key ── */
