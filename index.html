@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Momente</title>
+<meta name="theme-color" content="#F7F3EB">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Momente">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Karla:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --papier:#F7F3EB; --tinte:#33302B; --grau:#8C8578;
+    --linie:#E2DCCF; --licht:#E9DFCC; --akzent:#9AA88F;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; }
+  body {
+    background:linear-gradient(180deg,#F3EDE2 0%,#F7F3EB 45%,#F2E8D8 100%);
+    color:var(--tinte); font-family:'Karla',system-ui,sans-serif; font-weight:300;
+    display:flex; justify-content:center;
+    padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);
+  }
+  .screen {
+    width:100%; max-width:430px; min-height:100dvh;
+    padding:32px 28px; display:none; flex-direction:column; gap:26px;
+  }
+  .screen.active { display:flex; }
+  .screen.center { align-items:center; justify-content:center; }
+  .fadein { animation:fi .5s ease both; }
+  @keyframes fi { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+  @media (prefers-reduced-motion:reduce){ .fadein{animation:none} .glow{animation:none!important} .dot{animation:none!important} }
+
+  .brand { font-size:12px; letter-spacing:.3em; text-transform:uppercase; color:var(--grau); }
+
+  .moment-btn {
+    position:relative; width:210px; height:210px; border-radius:50%;
+    border:1px solid var(--linie); background:#FDFBF6; cursor:pointer; font-family:inherit;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 24px 60px rgba(120,105,80,.14); transition:transform .2s ease;
+  }
+  .moment-btn:active { transform:scale(.97); }
+  .glow {
+    position:absolute; inset:14px; border-radius:50%;
+    background:radial-gradient(circle at 50% 38%, var(--licht), transparent 70%);
+    animation:glow 6s ease-in-out infinite;
+  }
+  @keyframes glow { 0%,100%{opacity:.55} 50%{opacity:1} }
+  .moment-word {
+    position:relative; font-family:'Newsreader',serif; font-weight:500;
+    font-size:30px; letter-spacing:.02em; color:var(--tinte);
+  }
+
+  .ask-q { font-family:'Newsreader',serif; font-size:30px; font-weight:400; }
+  .row { display:flex; gap:14px; }
+  .btn {
+    border:1px solid var(--linie); background:#FDFBF6; color:var(--tinte);
+    border-radius:999px; padding:15px 34px; font-family:inherit; font-size:17px;
+    cursor:pointer; box-shadow:0 8px 24px rgba(120,105,80,.1);
+    transition:transform .15s ease,border-color .15s ease;
+  }
+  .btn:hover { border-color:var(--akzent); }
+  .btn:active { transform:scale(.97); }
+  .quiet { background:none; border:none; color:var(--grau); font-family:inherit; font-size:14.5px; cursor:pointer; padding:10px; }
+  .quiet:hover { color:var(--tinte); }
+  .quiet.strong { color:var(--tinte); }
+
+  .text-screen { justify-content:center; }
+  .morning-text {
+    font-family:'Newsreader',serif; font-weight:400;
+    font-size:clamp(21px,5.6vw,25px); line-height:1.65; white-space:pre-wrap;
+  }
+  .text-actions { display:flex; gap:18px; align-items:center; border-top:1px solid var(--linie); padding-top:18px; flex-wrap:wrap; }
+  .offline-note { font-size:12.5px; color:var(--grau); width:100%; }
+
+  .loading { display:flex; flex-direction:column; align-items:center; gap:18px; margin:auto 0; }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--akzent); display:inline-block; animation:breathe 1.6s ease-in-out infinite; }
+  .dot:nth-child(2){animation-delay:.25s} .dot:nth-child(3){animation-delay:.5s}
+  @keyframes breathe { 0%,100%{opacity:.25} 50%{opacity:1} }
+  .loading-line { color:var(--grau); font-size:14.5px; }
+
+  .setup { gap:18px; justify-content:center; }
+  .setup h1 { font-family:'Newsreader',serif; font-size:28px; font-weight:400; }
+  .setup p { color:var(--grau); font-size:15px; line-height:1.6; }
+  .setup input {
+    border:1px solid var(--linie); border-radius:12px; background:#FDFBF6;
+    padding:14px; font-family:inherit; font-size:15px; color:var(--tinte); width:100%;
+  }
+  .setup input:focus { outline:none; border-color:var(--akzent); }
+  .hint { font-size:12.5px; color:var(--grau); }
+
+  .corner { position:fixed; bottom:calc(14px + env(safe-area-inset-bottom)); right:16px; }
+
+  button:focus-visible, input:focus-visible { outline:2px solid var(--akzent); outline-offset:3px; }
+</style>
+</head>
+<body>
+
+<!-- SETUP (nur beim ersten Start / Key ändern) -->
+<div class="screen setup" id="s-setup">
+  <h1>Fast fertig.</h1>
+  <p>Damit die Texte jeden Morgen frisch entstehen, braucht die App deinen Anthropic&nbsp;API-Key. Er wird nur hier auf diesem Gerät gespeichert und nirgendwohin geschickt außer an die Anthropic-API.</p>
+  <input type="password" id="key-input" placeholder="sk-ant-…" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <button class="btn" id="key-save">Speichern</button>
+  <p class="hint">Key erstellen: console.anthropic.com → API Keys. Ohne Key nutzt die App ihren eingebauten Text-Vorrat.</p>
+  <button class="quiet" id="key-skip">Ohne Key weiter</button>
+</div>
+
+<!-- HOME -->
+<div class="screen center" id="s-home">
+  <p class="brand">Momente</p>
+  <button class="moment-btn" id="go-morgen">
+    <span class="glow" aria-hidden="true"></span>
+    <span class="moment-word">Morgen</span>
+  </button>
+</div>
+
+<!-- FRAGE -->
+<div class="screen center" id="s-ask">
+  <p class="ask-q">Heute?</p>
+  <div class="row">
+    <button class="btn" data-day="arbeit">Arbeit</button>
+    <button class="btn" data-day="frei">Frei</button>
+  </div>
+  <button class="quiet" id="ask-back">zurück</button>
+</div>
+
+<!-- TEXT -->
+<div class="screen text-screen" id="s-text">
+  <div class="loading" id="loading" hidden>
+    <div><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+    <p class="loading-line">Der Text entsteht …</p>
+  </div>
+  <p class="morning-text" id="morning-text" hidden></p>
+  <div class="text-actions" id="text-actions" hidden>
+    <span class="offline-note" id="offline-note" hidden>Aus dem Vorrat – gerade keine Verbindung.</span>
+    <button class="quiet" id="btn-refresh">Anders formulieren</button>
+    <button class="quiet strong" id="btn-done">Das reicht mir</button>
+  </div>
+</div>
+
+<button class="quiet corner" id="btn-settings" aria-label="Einstellungen">⋯</button>
+
+<script>
+/* ═══ MOMENTE · PWA ═══
+   Kein Tracking, kein Verlauf. Gespeichert: API-Key (lokal),
+   zuletzt genutzte Blickwinkel, zuletzt genutzte Vorratstexte. */
+
+const $ = (id) => document.getElementById(id);
+const screens = ["s-setup","s-home","s-ask","s-text"];
+function show(id){ screens.forEach(s=>$(s).classList.toggle("active",s===id)); }
+
+const LS_KEY="momente_key", LS_RECENT="momente_recent", LS_FB="momente_fb_recent";
+
+const ANGLES=[
+ {id:"kueche",hint:"Küchen-Energie: Der Laden macht auf, ob du bereit bist oder nicht – Mise en place beginnt mit dem ersten Handgriff, und der erste Handgriff heute ist aufstehen."},
+ {id:"musik",hint:"Musik-Logik: Kein Song entsteht im Kopf, er entsteht, wenn die erste Spur läuft – der Tag genauso, erst der erste Take, dann wird's gut."},
+ {id:"berg",hint:"Trail-Logik: Anrollen ist alles – die ersten Meter entscheiden nicht, wie die Tour wird, aber ohne sie gibt es keine. Erst treten, dann denken."},
+ {id:"jum",hint:"Jums Morgenlogik: Ein Hund verhandelt nicht mit dem Bett – Augen auf, strecken, zur Tür. Diese Klarheit heute ausleihen."},
+ {id:"schwung",hint:"Physik des Morgens: Ein Körper in Bewegung bleibt in Bewegung – die erste Bewegung ist die teuerste, danach wird jede billiger."},
+ {id:"spiel",hint:"Eine winzige, spielerische Mini-Challenge mit Tempo – etwas in den nächsten 60 Sekunden schaffen, augenzwinkernd, ohne Punkte."},
+ {id:"vorsprung",hint:"Der Vorsprungs-Gedanke: Was in den ersten 10 Minuten passiert, gehört schon dir, bevor der Tag überhaupt Ansprüche stellt."},
+ {id:"humor",hint:"Warmer, trockener Humor mit Zug – das Bett als charmanter Gegner, der heute verliert."},
+ {id:"saison",hint:"Die Jahreszeit heute in München als Startsignal – das Licht wartet draußen, nicht im Schlafzimmer."},
+ {id:"koerper",hint:"Körper zuerst, Kopf später – der Morgen wird nicht im Kopf entschieden, sondern in den Füßen. Füße auf den Boden, der Rest folgt."},
+];
+
+/* Vorrat für Momente ohne Netz oder ohne Key – gleiche Regeln: warm, Zug nach vorn, Momentum-Kette. */
+const FALLBACK={
+ arbeit:[
+"Der Laden macht heute auf – mit dir oder ohne dich wach. Also: Decke weg, Füße auf den Boden, das ist der teuerste Schritt des Tages, alle danach sind billiger. Fenster auf, einmal tief die Münchner Luft, und dann direkt zur Kaffeemaschine, bevor der Kopf mitreden will. Wenn das Wasser läuft, bist du schon drin im Tag.",
+"Mise en place beginnt nicht in der Küche, sie beginnt hier: aufsetzen, Füße raus, stehen. Mehr braucht der Anfang nicht. Geh ins Bad, Wasser ins Gesicht, kalt genug, dass der Körper versteht, was der Kopf noch nicht weiß – es geht los. Der erste Handgriff zieht den zweiten von allein nach.",
+"Jum würde jetzt nicht verhandeln. Augen auf, strecken, zur Tür – seine ganze Morgenroutine, seit Jahren erfolgreich. Leih sie dir: aufsetzen, einmal lang strecken, aufstehen. Bis der Kaffee durchgelaufen ist, hast du das Schwerste des Tages schon hinter dir, und es ist nicht mal acht.",
+"Ein Körper in Ruhe bleibt in Ruhe – bis einer die Decke wegzieht. Sei du der, der zieht. Füße auf den Boden, ans Fenster, aufmachen. Die Luft macht den Rest. Dann Wasser aufsetzen und beim Warten einmal durchstrecken – wenn die Maschine fertig ist, bist du es auch.",
+"Der erste Take muss nicht gut sein, er muss nur laufen. Also aufnehmen: aufstehen, Fenster auf, Wasser trinken – das ist deine erste Spur heute, roh und völlig okay. Der Rest des Tages wird darüber gelayert. Aber ohne erste Spur kein Song, also los, Füße zuerst.",
+"Zehn Minuten gehören dir, bevor das Restaurant auch nur weiß, dass du wach bist. Hol sie dir: raus aus dem Bett, Fenster auf, Glas Wasser. Drei Züge, keine Entscheidungen, kein Handy. Was jetzt passiert, hat der Tag dir schon nicht mehr weggenommen.",
+ ],
+ frei:[
+"Freier Tag heißt nicht langsamer Start – es heißt, der Schwung gehört heute komplett dir. Also gleiche Physik wie immer: Füße auf den Boden, das ist der teure Schritt. Fenster auf, schauen, was das Licht heute vorhat. Dann Wasser, und beim ersten Schluck entscheiden, wohin der Schwung heute fließt.",
+"Jum weiß nicht, dass frei ist. Für ihn gilt: Augen auf, strecken, Tür. Mach's wie er – aufsetzen, lang strecken, aufstehen. Die Belohnung für freie Tage gibt's nicht im Bett, sie liegt draußen rum und wartet, dass ihr zwei sie abholt.",
+"Ein freier Tag ist ein leeres Arrangement – und du weißt, wie man eins füllt: nicht durch Draufstarren, sondern mit der ersten Spur. Steh auf, Fenster auf, Kaffee ansetzen. Während er läuft, einmal strecken. Danach darfst du alles – aber erst mal das.",
+"Der Trail entscheidet sich nicht am Gipfel, er entscheidet sich beim Anrollen. Heute ist Anrollen: Decke weg, Füße runter, stehen. Ans Fenster, Luft rein. Wenn du beim Kaffee bist, rollt der Tag schon – und freie Tage, die früh rollen, werden die guten.",
+"Das Bett spielt heute seinen besten Trick: kein Termin, kein Grund. Aber du kennst den Trick, und er verliert gegen zwei Bewegungen – aufsetzen, aufstehen. Mehr hat es nicht. Fenster auf, Wasser trinken, und der freie Tag gehört dir statt der Matratze.",
+"Die erste Stunde eines freien Tages ist die wertvollste – danach wird er von allein kleiner. Also sichern: raus aus dem Bett, Fenster auf, einmal tief durchatmen, Wasser. Vier Schritte, zwei Minuten. Dann entscheide in Ruhe, was heute Spiel wird und was Pause.",
+ ],
+};
+
+const WEEKDAYS=["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
+const seasonOf=(m)=> m>=2&&m<=4?"Frühling":m>=5&&m<=7?"Sommer":m>=8&&m<=10?"Herbst":"Winter";
+
+function buildPrompt(dayType, angle){
+  const now=new Date();
+  const wd=WEEKDAYS[now.getDay()];
+  const date=now.toLocaleDateString("de-DE",{day:"numeric",month:"long"});
+  const season=seasonOf(now.getMonth());
+  const hour=now.getHours();
+  const daypart=hour<9?"früher Morgen":hour<12?"Vormittag":"später Start in den Tag";
+  return `Du schreibst einen kurzen Morgentext für Fabian. Er öffnet gerade sein Handy, der Tag hat noch nicht richtig angefangen.
+
+WER FABIAN IST (nur als Hintergrund, nicht alles erwähnen):
+Restaurantleiter in München (Die Küche im Kraftwerk, moderne alpine Küche). Lebt mit seiner Partnerin Sonja und Hund Jum. Macht Musik (Songwriting, Logic Pro), fährt Mountainbike. Hat ADHS – sein Thema ist nie das Wissen, sondern das Anfangen.
+
+HEUTE:
+${wd}, ${date} · ${season} · ${daypart} · ${dayType==="arbeit"?"Arbeitstag im Restaurant":"freier Tag"}
+
+SITUATION UND AUFTRAG:
+Fabian liegt noch im Bett oder ist gerade aufgestanden. Der Text hat genau einen Job: Momentum erzeugen – ihn körperlich in Bewegung bringen und die ersten 10 Minuten des Tages anschieben. Kernprinzip: Aktion kommt vor Motivation. Der Text redet nicht ÜBER den Tag, er zieht in ihn hinein.
+
+BLICKWINKEL FÜR HEUTE (nur als kurzer Aufhänger, maximal 1–2 Sätze, dann in Bewegung):
+${angle.hint}
+
+REGELN – alle verbindlich:
+- Deutsch, du-Form, 60–100 Wörter, ein Absatz oder zwei kurze.
+- Ton: warm, aber mit Zug nach vorn. Kurze Sätze, starke Verben, Tempo. Wie ein guter Freund, der schon in der Küche steht und ruft. Nie fordernd, nie Drill – aber auch nicht meditativ. Kein Betrachten, kein Innehalten, kein "spür mal".
+- Herzstück ist eine MOMENTUM-KETTE: 2–3 winzige Handlungen, die direkt aufeinander aufbauen und ihn vom Bett in den Tag ziehen. Die erste ist sofort machbar (aufsetzen, Füße auf den Boden, Fenster auf), jede weitere folgt natürlich aus der vorherigen. Als fließender Zug formuliert, nicht als Liste oder Anleitung. Die Kette passt zu ${dayType==="arbeit"?"einem Arbeitstag":"einem freien Tag"}.
+- Der erste Satz muss sofort ziehen – kein Aufwärmen, kein Beschreiben der Morgenstimmung als Selbstzweck.
+- NIEMALS erklären, warum etwas wichtig ist. Keine Produktivitätsfloskeln, keine Zitate, kein Pathos, keine Kalendersprüche, kein "Du schaffst das!".
+- Kein "Guten Morgen Fabian!"-Einstieg als Floskel – fang mitten im Zug an.
+- Höchstens ein Ausrufezeichen im ganzen Text.
+- Keine Emojis, keine Listen, keine Überschriften.
+
+Antworte NUR mit dem Text selbst, nichts davor oder danach.`;
+}
+
+/* ── Zustand ── */
+let dayType="arbeit", refreshed=false;
+
+function getRecent(k){ try{return JSON.parse(localStorage.getItem(k))||[]}catch(e){return[]} }
+function setRecent(k,arr){ try{localStorage.setItem(k,JSON.stringify(arr))}catch(e){} }
+
+function pickAngle(){
+  const recent=getRecent(LS_RECENT);
+  const fresh=ANGLES.filter(a=>!recent.includes(a.id));
+  const pool=fresh.length?fresh:ANGLES;
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+function rememberAngle(id){
+  setRecent(LS_RECENT,[id,...getRecent(LS_RECENT).filter(x=>x!==id)].slice(0,5));
+}
+function pickFallback(dt){
+  const pool=FALLBACK[dt];
+  const recent=getRecent(LS_FB);
+  const idxs=pool.map((_,i)=>dt+i).filter(x=>!recent.includes(x));
+  const chosenKey=(idxs.length?idxs:pool.map((_,i)=>dt+i))[Math.floor(Math.random()*(idxs.length||pool.length))];
+  setRecent(LS_FB,[chosenKey,...recent.filter(x=>x!==chosenKey)].slice(0,7));
+  return pool[parseInt(chosenKey.replace(dt,""),10)];
+}
+
+async function callAPI(prompt){
+  const key=localStorage.getItem(LS_KEY);
+  if(!key) throw new Error("kein Key");
+  const res=await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      "x-api-key":key,
+      "anthropic-version":"2023-06-01",
+      "anthropic-dangerous-direct-browser-access":"true",
+    },
+    body:JSON.stringify({
+      model:"claude-sonnet-4-6",
+      max_tokens:400,
+      messages:[{role:"user",content:prompt}],
+    }),
+  });
+  const data=await res.json().catch(()=>null);
+  if(!res.ok) throw new Error(data?.error?.message||("HTTP "+res.status));
+  const t=(data?.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n").trim();
+  if(!t) throw new Error("leer");
+  return t;
+}
+
+async function generate(){
+  show("s-text");
+  $("loading").hidden=false;
+  $("morning-text").hidden=true;
+  $("text-actions").hidden=true;
+  $("offline-note").hidden=true;
+
+  const angle=pickAngle();
+  let text=null, offline=false;
+  try{
+    text=await callAPI(buildPrompt(dayType,angle));
+    rememberAngle(angle.id);
+  }catch(e){
+    try{
+      await new Promise(r=>setTimeout(r,1200));
+      text=await callAPI(buildPrompt(dayType,angle));
+      rememberAngle(angle.id);
+    }catch(e2){
+      text=pickFallback(dayType);
+      offline=true;
+    }
+  }
+  $("loading").hidden=true;
+  $("morning-text").textContent=text;
+  $("morning-text").hidden=false;
+  $("text-actions").hidden=false;
+  $("offline-note").hidden=!offline;
+  $("btn-refresh").style.display=refreshed?"none":"";
+}
+
+/* ── Navigation ── */
+$("go-morgen").onclick=()=>show("s-ask");
+$("ask-back").onclick=()=>show("s-home");
+document.querySelectorAll("[data-day]").forEach(b=>{
+  b.onclick=()=>{ dayType=b.dataset.day; refreshed=false; generate(); };
+});
+$("btn-refresh").onclick=()=>{ refreshed=true; generate(); };
+$("btn-done").onclick=()=>show("s-home");
+
+/* ── Setup / Key ── */
+$("key-save").onclick=()=>{
+  const v=$("key-input").value.trim();
+  if(v){ try{localStorage.setItem(LS_KEY,v)}catch(e){} }
+  $("key-input").value="";
+  show("s-home");
+};
+$("key-skip").onclick=()=>show("s-home");
+$("btn-settings").onclick=()=>{ show("s-setup"); };
+
+/* ── Start ── */
+if(localStorage.getItem(LS_KEY)) show("s-home"); else show("s-setup");
+document.querySelectorAll(".screen").forEach(s=>s.classList.add("fadein"));
+
+/* ── Service Worker ── */
+if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").catch(()=>{}); }
+</script>
+</body>
+</html>
