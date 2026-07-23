@@ -19,7 +19,6 @@
     --linie:#E2DCCF; --licht:#E9DFCC; --akzent:#9AA88F;
   }
   * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
-  [hidden] { display:none !important; }
   html, body { height:100%; }
   html { background:#F3EDE2; }
   body {
@@ -34,9 +33,9 @@
   }
   .screen.active { display:flex; }
   .screen.center { align-items:center; justify-content:center; }
+  .center-col { display:flex; flex-direction:column; align-items:center; gap:20px; margin:auto 0; }
   .fadein { animation:fi .5s ease both; }
   @keyframes fi { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
-  @media (prefers-reduced-motion:reduce){ .fadein{animation:none} .glow{animation:none!important} .dot{animation:none!important} }
 
   .brand { font-size:12px; letter-spacing:.3em; text-transform:uppercase; color:var(--grau); }
 
@@ -59,10 +58,10 @@
   }
 
   .ask-q { font-family:'Newsreader',serif; font-size:30px; font-weight:400; }
-  .row { display:flex; gap:14px; }
+  .state-col { display:flex; flex-direction:column; gap:12px; width:100%; max-width:280px; }
   .btn {
     border:1px solid var(--linie); background:#FDFBF6; color:var(--tinte);
-    border-radius:999px; padding:15px 34px; font-family:inherit; font-size:17px;
+    border-radius:999px; padding:16px 34px; font-family:inherit; font-size:17px;
     cursor:pointer; box-shadow:0 8px 24px rgba(120,105,80,.1);
     transition:transform .15s ease,border-color .15s ease;
   }
@@ -75,9 +74,18 @@
   .text-screen { justify-content:center; }
   .morning-text {
     font-family:'Newsreader',serif; font-weight:400;
-    font-size:clamp(21px,5.6vw,25px); line-height:1.65; white-space:pre-wrap;
+    font-size:clamp(21px,5.6vw,25px); line-height:1.65;
   }
-  .text-actions { display:flex; gap:18px; align-items:center; border-top:1px solid var(--linie); padding-top:18px; flex-wrap:wrap; }
+  .morning-text .w { opacity:0; animation:wfade .7s ease forwards; }
+  @keyframes wfade { from{opacity:0} to{opacity:1} }
+  @media (prefers-reduced-motion:reduce){
+    .fadein{animation:none}
+    .glow{animation:none!important}
+    .dot{animation:none!important}
+    .morning-text .w{opacity:1;animation:none}
+  }
+  .text-actions { display:flex; gap:18px; align-items:center; border-top:1px solid var(--linie); padding-top:18px; flex-wrap:wrap; opacity:0; transition:opacity .6s ease; }
+  .text-actions.visible { opacity:1; }
   .offline-note { font-size:12.5px; color:var(--grau); width:100%; }
 
   .loading { display:flex; flex-direction:column; align-items:center; gap:18px; margin:auto 0; }
@@ -96,14 +104,15 @@
   .setup input:focus { outline:none; border-color:var(--akzent); }
   .hint { font-size:12.5px; color:var(--grau); }
 
-  .corner { position:fixed; bottom:calc(14px + env(safe-area-inset-bottom)); right:16px; }
+  .err { color:var(--grau); font-size:16px; text-align:center; max-width:26ch; line-height:1.6; }
 
+  .corner { position:fixed; bottom:calc(14px + env(safe-area-inset-bottom)); right:16px; }
   button:focus-visible, input:focus-visible { outline:2px solid var(--akzent); outline-offset:3px; }
 </style>
 </head>
 <body>
 
-<!-- SETUP (nur beim ersten Start / Key ändern) -->
+<!-- SETUP -->
 <div class="screen setup" id="s-setup">
   <h1>Fast fertig.</h1>
   <p>Damit die Texte jeden Morgen frisch entstehen, braucht die App deinen Anthropic&nbsp;API-Key. Er wird nur hier auf diesem Gerät gespeichert und nirgendwohin geschickt außer an die Anthropic-API.</p>
@@ -120,6 +129,17 @@
     <span class="glow" aria-hidden="true"></span>
     <span class="moment-word">Morgen</span>
   </button>
+</div>
+
+<!-- CHECK-IN -->
+<div class="screen center" id="s-checkin">
+  <p class="ask-q">Wie wach?</p>
+  <div class="state-col">
+    <button class="btn" data-state="verschlafen">Verschlafen</button>
+    <button class="btn" data-state="gehtso">Geht so</button>
+    <button class="btn" data-state="wach">Wach</button>
+  </div>
+  <button class="quiet" id="checkin-back">zurück</button>
 </div>
 
 <!-- TEXT -->
@@ -139,13 +159,17 @@
 <button class="quiet corner" id="btn-settings" aria-label="Einstellungen">⋯</button>
 
 <script>
-/* ═══ MOMENTE · PWA ═══
-   Kein Tracking, kein Verlauf. Gespeichert: API-Key (lokal),
-   zuletzt genutzte Blickwinkel, zuletzt genutzte Vorratstexte. */
+/* ═══ MOMENTE v2 ═══
+   Check-in (Arousal ist die stärkste Stellgröße) → Wetter
+   automatisch (München) → Text-Strategie passend zum Zustand.
+   Kein Tracking, kein Verlauf. */
 
 const $ = (id) => document.getElementById(id);
-const screens = ["s-setup","s-home","s-text"];
+const screens = ["s-setup","s-home","s-checkin","s-text"];
 function show(id){ screens.forEach(s=>$(s).classList.toggle("active",s===id)); }
+function setVisible(id, on, display){
+  $(id).style.setProperty("display", on ? (display||"block") : "none", "important");
+}
 
 const LS_KEY="momente_key", LS_RECENT="momente_recent", LS_FB="momente_fb_recent";
 
@@ -162,28 +186,63 @@ const ANGLES=[
  {id:"koerper",hint:"Körper zuerst, Kopf später – der Morgen wird nicht im Kopf entschieden, sondern in den Füßen. Füße auf den Boden, der Rest folgt."},
 ];
 
-/* Vorrat für Momente ohne Netz oder ohne Key – gleiche Regeln: warm, Zug nach vorn, Momentum-Kette. */
-const FALLBACK=[
-"Ein Körper in Ruhe bleibt in Ruhe – bis einer die Decke wegzieht. Sei du der, der zieht. Füße auf den Boden, das ist der teuerste Schritt des Tages, alle danach sind billiger. Ans Fenster, aufmachen, die Luft macht den Rest. Dann Wasser aufsetzen und beim Warten einmal durchstrecken – wenn die Maschine fertig ist, bist du es auch.",
-"Jum würde jetzt nicht verhandeln. Augen auf, strecken, zur Tür – seine ganze Morgenroutine, seit Jahren erfolgreich. Leih sie dir: aufsetzen, einmal lang strecken, aufstehen. Bis der Kaffee durchgelaufen ist, hast du das Schwerste des Tages schon hinter dir.",
-"Der erste Take muss nicht gut sein, er muss nur laufen. Also aufnehmen: aufstehen, Fenster auf, Wasser trinken – das ist deine erste Spur heute, roh und völlig okay. Der Rest des Tages wird darüber gelayert. Ohne erste Spur kein Song, also los, Füße zuerst.",
-"Der Trail entscheidet sich nicht am Gipfel, er entscheidet sich beim Anrollen. Heute ist Anrollen: Decke weg, Füße runter, stehen. Ans Fenster, Luft rein. Wenn du beim Kaffee bist, rollt der Tag schon – und Tage, die früh rollen, werden die guten.",
-"Zehn Minuten gehören dir, bevor der Tag überhaupt weiß, dass du wach bist. Hol sie dir: raus aus dem Bett, Fenster auf, Glas Wasser. Drei Züge, keine Entscheidungen, kein Handy. Was jetzt passiert, kann dir keiner mehr wegnehmen.",
-"Das Bett spielt seinen besten Trick: noch fünf Minuten, die nie fünf bleiben. Du kennst den Trick, und er verliert gegen zwei Bewegungen – aufsetzen, aufstehen. Mehr hat es nicht. Fenster auf, Wasser trinken, und der Morgen gehört dir statt der Matratze.",
-"Mise en place beginnt nicht in der Küche, sie beginnt hier: aufsetzen, Füße raus, stehen. Mehr braucht der Anfang nicht. Ins Bad, Wasser ins Gesicht, kalt genug, dass der Körper versteht, was der Kopf noch nicht weiß – es geht los. Der erste Handgriff zieht den zweiten von allein nach.",
-"Die erste Bewegung ist die teuerste, danach wird jede billiger – das ist die ganze Physik des Morgens. Also investier sie jetzt: Füße auf den Boden. Schon fällt die zweite leichter: aufstehen, strecken. Und die dritte läuft von allein: Fenster auf, schauen, was das Licht heute vorhat.",
-];
+/* Zustands-Strategien – abgeleitet aus Sleep-Inertia- und Arousal-Forschung */
+const STATES={
+ verschlafen:`ZUSTAND: Fabian ist noch tief in der Schlaf-Trägheit. Sein Gehirn ist gerade nicht bereit für kluge Gedanken oder viele Ideen – das ist Biologie, kein Charakter.
+STRATEGIE (abholen, dann Fahrt aufnehmen):
+- Sehr kurze Sätze, maximal 8–10 Wörter. Eine einzige Idee im ganzen Text.
+- Die Kette besteht aus körperlichen Gegenmitteln gegen Schlaf-Trägheit: Licht (Fenster auf), kaltes Wasser ins Gesicht, aufstehen und strecken. Kein Denken verlangen.
+- Einstieg sanft und verständnisvoll (kein Vorwurf fürs Verschlafensein), dann Satz für Satz mehr Zug.
+- Länge: 50–80 Wörter.`,
+ gehtso:`ZUSTAND: Fabian ist wach, aber der Motor läuft noch nicht. Normaler Morgen.
+STRATEGIE:
+- Warm, aber mit Zug nach vorn. Kurze Sätze, starke Verben, Tempo.
+- Momentum-Kette aus 2–3 winzigen Handlungen, die aufeinander aufbauen (Füße auf den Boden → Fenster → Wasser o.ä.), als fließender Zug formuliert.
+- Länge: 60–100 Wörter.`,
+ wach:`ZUSTAND: Fabian ist ausgeruht und wach aufgewacht – das ist ein Vorsprung, den man nicht verschenkt.
+STRATEGIE:
+- Tempo ab dem ersten Satz. Der Text darf spielerisch fordern (nie Drill): eine Mini-Challenge, ein Augenzwinkern, Vorsprung-Denken.
+- Die Kette darf ambitionierter sein und direkt in etwas münden, worauf er Lust hat.
+- Länge: 60–100 Wörter.`,
+};
+
+/* Wetter: WMO-Codes → Beschreibung */
+function weatherDesc(code){
+  if(code===0) return "klarer Himmel";
+  if(code<=2) return "leicht bewölkt";
+  if(code===3) return "bedeckt";
+  if(code<=48) return "Nebel";
+  if(code<=57) return "Nieselregen";
+  if(code<=67) return "Regen";
+  if(code<=77) return "Schnee";
+  if(code<=82) return "Regenschauer";
+  if(code<=86) return "Schneeschauer";
+  return "Gewitter";
+}
+async function getWeather(){
+  try{
+    const ctrl=new AbortController();
+    const t=setTimeout(()=>ctrl.abort(),3500);
+    const r=await fetch("https://api.open-meteo.com/v1/forecast?latitude=48.14&longitude=11.58&current=temperature_2m,weather_code&timezone=Europe%2FBerlin",{signal:ctrl.signal});
+    clearTimeout(t);
+    const d=await r.json();
+    return { temp:Math.round(d.current.temperature_2m), desc:weatherDesc(d.current.weather_code) };
+  }catch(e){ return null; }
+}
 
 const WEEKDAYS=["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
 const seasonOf=(m)=> m>=2&&m<=4?"Frühling":m>=5&&m<=7?"Sommer":m>=8&&m<=10?"Herbst":"Winter";
 
-function buildPrompt(angle){
+function buildPrompt(state, angle, weather){
   const now=new Date();
   const wd=WEEKDAYS[now.getDay()];
   const date=now.toLocaleDateString("de-DE",{day:"numeric",month:"long"});
   const season=seasonOf(now.getMonth());
   const hour=now.getHours();
   const daypart=hour<9?"früher Morgen":hour<12?"Vormittag":"später Start in den Tag";
+  const weatherLine=weather?`DRAUSSEN IN MÜNCHEN: ${weather.desc}, ${weather.temp}°C.
+WETTER-REGEL: Nutze das Wetter nur, wenn es dem Zug nach vorn dient – nie als Smalltalk. Bei Regen oder trübem Wetter: sprich die Gemütlichkeits-Falle direkt an und dreh sie um (Regen ist das Startsignal für drinnen – Licht an, Bewegung drinnen, der Kaffee kommt nach der Bewegung, nicht statt ihr). Bei klarem Himmel oder Sonne: Licht ist das stärkste Wachmacher-Signal – mach ans-Fenster-gehen oder rausschauen zum ersten Kettenglied. Bei Kälte oder Schnee: Wärme entsteht durch Bewegung, nicht durch Liegenbleiben.`:"";
+
   return `Du schreibst einen kurzen Morgentext für Fabian. Er öffnet gerade sein Handy, der Tag hat noch nicht richtig angefangen.
 
 WER FABIAN IST (nur als Hintergrund, nicht alles erwähnen):
@@ -191,17 +250,19 @@ Restaurantleiter in München (Die Küche im Kraftwerk, moderne alpine Küche). L
 
 HEUTE:
 ${wd}, ${date} · ${season} · ${daypart}
+${weatherLine}
 
-SITUATION UND AUFTRAG:
-Fabian liegt noch im Bett oder ist gerade aufgestanden. Der Text hat genau einen Job: Momentum erzeugen – ihn körperlich in Bewegung bringen und die ersten 10 Minuten des Tages anschieben. Kernprinzip: Aktion kommt vor Motivation. Der Text redet nicht ÜBER den Tag, er zieht in ihn hinein.
+${STATES[state]}
+
+AUFTRAG:
+Der Text hat genau einen Job: Momentum erzeugen – Fabian körperlich in Bewegung bringen und die ersten 10 Minuten des Tages anschieben. Kernprinzip: Aktion kommt vor Motivation. Der Text redet nicht ÜBER den Tag, er zieht in ihn hinein.
 
 BLICKWINKEL FÜR HEUTE (nur als kurzer Aufhänger, maximal 1–2 Sätze, dann in Bewegung):
 ${angle.hint}
 
 REGELN – alle verbindlich:
-- Deutsch, du-Form, 60–100 Wörter, ein Absatz oder zwei kurze.
-- Ton: warm, aber mit Zug nach vorn. Kurze Sätze, starke Verben, Tempo. Wie ein guter Freund, der schon in der Küche steht und ruft. Nie fordernd, nie Drill – aber auch nicht meditativ. Kein Betrachten, kein Innehalten, kein "spür mal".
-- Herzstück ist eine MOMENTUM-KETTE: 2–3 winzige Handlungen, die direkt aufeinander aufbauen und ihn vom Bett in den Tag ziehen. Die erste ist sofort machbar (aufsetzen, Füße auf den Boden, Fenster auf), jede weitere folgt natürlich aus der vorherigen. Als fließender Zug formuliert, nicht als Liste oder Anleitung. Die Kette ist universell – sie funktioniert an jedem Morgen, egal was danach kommt.
+- Deutsch, du-Form, ein Absatz oder zwei kurze.
+- Ton laut Strategie oben. Wie ein guter Freund, der schon in der Küche steht. Nie fordernd im Sinne von Drill, nie meditativ. Kein Betrachten, kein "spür mal".
 - Der erste Satz muss sofort ziehen – kein Aufwärmen, kein Beschreiben der Morgenstimmung als Selbstzweck.
 - NIEMALS erklären, warum etwas wichtig ist. Keine Produktivitätsfloskeln, keine Zitate, kein Pathos, keine Kalendersprüche, kein "Du schaffst das!".
 - Kein "Guten Morgen Fabian!"-Einstieg als Floskel – fang mitten im Zug an.
@@ -211,8 +272,30 @@ REGELN – alle verbindlich:
 Antworte NUR mit dem Text selbst, nichts davor oder danach.`;
 }
 
+/* Vorrat – je Zustand, für Momente ohne Netz oder Key */
+const FALLBACK={
+ verschlafen:[
+"Noch nicht wach. Musst du auch nicht sein. Nur Füße auf den Boden. Gut. Jetzt zum Fenster, Licht rein. Das Gehirn kommt nach, versprochen. Kaltes Wasser ins Gesicht. Mehr war's nicht. Der Rest vom Morgen trägt dich jetzt.",
+"Schwerer Kopf, klarer Plan. Aufsetzen. Kurz sitzen bleiben. Jetzt stehen. Fenster auf – Luft und Licht machen die Arbeit. Wasser trinken, ein großes Glas. Das reicht als Anfang. Fahrt kommt von allein.",
+"Das ist Schlaf-Trägheit, kein Charakter. Sie geht von allein, schneller mit Bewegung. Also: Decke weg. Füße runter. Stehen. Einmal strecken, lang. Licht an oder Fenster auf. In zehn Minuten bist du ein anderer Mensch.",
+"Der Körper ist wach, das Gehirn lädt noch. Warte nicht drauf. Füße auf den Boden. Zum Fenster. Kaltes Wasser ins Gesicht. Drei Handgriffe, null Denken. Genau richtig für jetzt.",
+ ],
+ gehtso:[
+"Ein Körper in Ruhe bleibt in Ruhe – bis einer die Decke wegzieht. Sei du der, der zieht. Füße auf den Boden, das ist der teuerste Schritt des Tages, alle danach sind billiger. Ans Fenster, aufmachen, die Luft macht den Rest. Dann Wasser aufsetzen und beim Warten einmal durchstrecken.",
+"Jum würde jetzt nicht verhandeln. Augen auf, strecken, zur Tür – seine ganze Morgenroutine, seit Jahren erfolgreich. Leih sie dir: aufsetzen, einmal lang strecken, aufstehen. Bis der Kaffee durchgelaufen ist, hast du das Schwerste des Tages schon hinter dir.",
+"Der erste Take muss nicht gut sein, er muss nur laufen. Also aufnehmen: aufstehen, Fenster auf, Wasser trinken – das ist deine erste Spur heute, roh und völlig okay. Der Rest des Tages wird darüber gelayert. Ohne erste Spur kein Song, also los, Füße zuerst.",
+"Der Trail entscheidet sich nicht am Gipfel, er entscheidet sich beim Anrollen. Heute ist Anrollen: Decke weg, Füße runter, stehen. Ans Fenster, Luft rein. Wenn du beim Kaffee bist, rollt der Tag schon – und Tage, die früh rollen, werden die guten.",
+ ],
+ wach:[
+"Wach? Dann nicht verschenken. Raus aus dem Bett, Fenster auf – die ersten zehn Minuten gehören dir, bevor der Tag Ansprüche stellt. Wasser, strecken, und dann direkt das erste Ding anfassen, das heute zählt. Mit Rückenwind startet man nicht langsam.",
+"Ausgeruht aufgewacht ist ein Vorsprung – nimm ihn mit. Füße runter, Fenster auf, einmal tief. Kleine Challenge: In sechzig Sekunden stehst du angezogen in der Küche. Los. Der Tag kriegt dich heute in Bestform.",
+"Heute ist einer der Morgen, an denen es leicht geht – die sind zum Ausnutzen da. Aufstehen, Licht rein, Wasser. Und dann nicht trödeln: das Erste, worauf du Lust hast, sofort anfangen. Momentum plus Lust ist die beste Kombination, die dein Gehirn kennt.",
+"Der Motor läuft schon – fehlt nur das Losfahren. Decke weg, stehen, strecken. Fenster auf, kurz schauen, was der Tag vorhat. Dann zieh los, bevor der Schwung Fragen stellt. Tage wie heute fahren sich fast von allein.",
+ ],
+};
+
 /* ── Zustand ── */
-let refreshed=false;
+let currentState="gehtso", refreshed=false;
 
 function getRecent(k){ try{return JSON.parse(localStorage.getItem(k))||[]}catch(e){return[]} }
 function setRecent(k,arr){ try{localStorage.setItem(k,JSON.stringify(arr))}catch(e){} }
@@ -226,13 +309,14 @@ function pickAngle(){
 function rememberAngle(id){
   setRecent(LS_RECENT,[id,...getRecent(LS_RECENT).filter(x=>x!==id)].slice(0,5));
 }
-function pickFallback(){
+function pickFallback(state){
+  const pool=FALLBACK[state];
   const recent=getRecent(LS_FB);
-  const idxs=FALLBACK.map((_,i)=>i).filter(i=>!recent.includes(i));
-  const pool=idxs.length?idxs:FALLBACK.map((_,i)=>i);
-  const i=pool[Math.floor(Math.random()*pool.length)];
-  setRecent(LS_FB,[i,...recent.filter(x=>x!==i)].slice(0,5));
-  return FALLBACK[i];
+  const keys=pool.map((_,i)=>state+i).filter(k=>!recent.includes(k));
+  const use=keys.length?keys:pool.map((_,i)=>state+i);
+  const k=use[Math.floor(Math.random()*use.length)];
+  setRecent(LS_FB,[k,...recent.filter(x=>x!==k)].slice(0,6));
+  return pool[parseInt(k.replace(state,""),10)];
 }
 
 async function callAPI(prompt){
@@ -259,8 +343,21 @@ async function callAPI(prompt){
   return t;
 }
 
-function setVisible(id, on, display){
-  $(id).style.setProperty("display", on ? (display||"block") : "none", "important");
+/* Wort-für-Wort-Fade */
+function renderFlowing(text){
+  const el=$("morning-text");
+  el.textContent="";
+  const words=text.split(/\s+/);
+  const step=Math.min(70, Math.max(35, 4200/words.length)); // Gesamtdauer ~4 Sek, gedeckelt
+  words.forEach((w,i)=>{
+    const span=document.createElement("span");
+    span.className="w";
+    span.textContent=w;
+    span.style.animationDelay=(i*step/1000).toFixed(2)+"s";
+    el.appendChild(span);
+    el.appendChild(document.createTextNode(" "));
+  });
+  return words.length*step + 700;
 }
 
 async function generate(){
@@ -269,32 +366,41 @@ async function generate(){
   setVisible("morning-text", false);
   setVisible("text-actions", false);
   setVisible("offline-note", false);
+  $("text-actions").classList.remove("visible");
 
   const angle=pickAngle();
+  const weatherPromise=getWeather();
   let text=null, offline=false;
   try{
-    text=await callAPI(buildPrompt(angle));
+    const weather=await weatherPromise;
+    text=await callAPI(buildPrompt(currentState,angle,weather));
     rememberAngle(angle.id);
   }catch(e){
     try{
       await new Promise(r=>setTimeout(r,1200));
-      text=await callAPI(buildPrompt(angle));
+      const weather=await weatherPromise.catch(()=>null);
+      text=await callAPI(buildPrompt(currentState,angle,weather));
       rememberAngle(angle.id);
     }catch(e2){
-      text=pickFallback();
+      text=pickFallback(currentState);
       offline=true;
     }
   }
   setVisible("loading", false);
-  $("morning-text").textContent=text;
   setVisible("morning-text", true);
-  setVisible("text-actions", true, "flex");
+  const dur=renderFlowing(text);
   setVisible("offline-note", offline, "block");
   setVisible("btn-refresh", !refreshed, "");
+  setVisible("text-actions", true, "flex");
+  setTimeout(()=>$("text-actions").classList.add("visible"), Math.min(dur, 5200));
 }
 
 /* ── Navigation ── */
-$("go-morgen").onclick=()=>{ refreshed=false; generate(); };
+$("go-morgen").onclick=()=>show("s-checkin");
+$("checkin-back").onclick=()=>show("s-home");
+document.querySelectorAll("[data-state]").forEach(b=>{
+  b.onclick=()=>{ currentState=b.dataset.state; refreshed=false; generate(); };
+});
 $("btn-refresh").onclick=()=>{ refreshed=true; generate(); };
 $("btn-done").onclick=()=>show("s-home");
 
@@ -306,13 +412,12 @@ $("key-save").onclick=()=>{
   show("s-home");
 };
 $("key-skip").onclick=()=>show("s-home");
-$("btn-settings").onclick=()=>{ show("s-setup"); };
+$("btn-settings").onclick=()=>show("s-setup");
 
 /* ── Start ── */
 if(localStorage.getItem(LS_KEY)) show("s-home"); else show("s-setup");
 document.querySelectorAll(".screen").forEach(s=>s.classList.add("fadein"));
 
-/* ── Service Worker ── */
 if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").catch(()=>{}); }
 </script>
 </body>
