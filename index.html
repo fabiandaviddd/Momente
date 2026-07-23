@@ -245,7 +245,7 @@ function pickActions(state){
   if(fresh.length<4) fresh=pool;
   const chosen=[];
   const copy=[...fresh];
-  while(chosen.length<4&&copy.length){
+  while(chosen.length<3&&copy.length){
     chosen.push(copy.splice(Math.floor(Math.random()*copy.length),1)[0]);
   }
   setRecent(LS_ACT,[...chosen.map(a=>a.t),...recent].slice(0,8));
@@ -292,7 +292,10 @@ async function getWeather(){
     const r=await fetch("https://api.open-meteo.com/v1/forecast?latitude=48.14&longitude=11.58&current=temperature_2m,weather_code&timezone=Europe%2FBerlin",{signal:ctrl.signal});
     clearTimeout(t);
     const d=await r.json();
-    return { temp:Math.round(d.current.temperature_2m), desc:weatherDesc(d.current.weather_code) };
+    const temp=Math.round(d.current.temperature_2m);
+    const desc=weatherDesc(d.current.weather_code);
+    const notable=/Regen|Schnee|Gewitter|Schauer|Nebel|Niesel/.test(desc)||temp<=3||temp>=27;
+    return { temp, desc, notable };
   }catch(e){ return null; }
 }
 
@@ -311,8 +314,8 @@ function buildPrompt(state, angle, weather, actions, analog){
   const lateBlock=mins>=630?`
 
 BESONDERE LAGE – SPÄTER START (${timeStr} Uhr):
-Genau jetzt droht Fabians bekanntes Muster: Das kleine Zeitfenster bis zu den Verpflichtungen des Tages fühlt sich zu kurz an, der Kopf kippt in Lähmung oder flüchtet in die erstbeste Aufgabe – und vergisst dabei das Wichtige, auch das Kümmern um sich selbst. Der Text entschärft das in dieser Reihenfolge: (1) Das Fenster reicht – sag das klar. (2) Zuerst das Selbstfürsorge-Minimum (etwas essen, duschen, kurz bewegen). (3) Dann genau EINE Sache, die heute wirklich zählt – Fabian wählt sie selbst, der Text fordert ihn nur auf, sie jetzt beim Namen zu nennen, bevor irgendein Bildschirm angeht. (4) Ausdrückliche Erlaubnis, alles andere heute zu lassen. Kein Vorwurf fürs späte Aufstehen, mit keinem Wort. Die Bildschirm-Übergabe bleibt trotzdem Pflicht.`:"";
-  const weatherLine=weather?`DRAUSSEN IN MÜNCHEN: ${weather.desc}, ${weather.temp}°C.
+Fabian kennt bei spätem Aufstehen ein Muster: Das kleine Zeitfenster erzeugt Druck, der Kopf kippt in Lähmung oder flüchtet in die erstbeste Aufgabe, und Selbstfürsorge wie das wirklich Wichtige gehen verloren. Was der Text leisten soll – natürlich eingewoben, KEIN nummeriertes Schema, keine festen Ritualformeln: den Zeitdruck rausnehmen (das Fenster reicht), Selbstfürsorge vor Produktivität stellen${state!=="verschlafen"?", und ihn beiläufig dazu bringen, sich für heute auf eine Hauptsache zu beschränken – in deinen eigenen Worten, jedes Mal anders angestoßen":" – und sonst nichts verlangen: kein Entscheiden, keine Prioritätenfragen, sein Gehirn ist dafür noch nicht bereit"}. Erlaubnis zum Weglassen mitgeben. Kein Vorwurf fürs späte Aufstehen, mit keinem Wort.`:"";
+  const weatherLine=(weather&&weather.notable)?`DRAUSSEN IN MÜNCHEN: ${weather.desc}, ${weather.temp}°C.
 WETTER-REGEL: Nutze das Wetter nur, wenn es dem Zug nach vorn dient – nie als Smalltalk. Bei Regen oder trübem Wetter: sprich die Gemütlichkeits-Falle direkt an und dreh sie um (Regen ist das Startsignal für drinnen – Licht an, Bewegung drinnen, der Kaffee kommt nach der Bewegung, nicht statt ihr). Bei klarem Himmel oder Sonne: Licht ist das stärkste Wachmacher-Signal – mach ans-Fenster-gehen oder rausschauen zum ersten Kettenglied. Bei Kälte oder Schnee: Wärme entsteht durch Bewegung, nicht durch Liegenbleiben.`:"";
 
   return `Du schreibst einen kurzen Morgentext für Fabian. Er öffnet gerade sein Handy, der Tag hat noch nicht richtig angefangen.
@@ -327,19 +330,26 @@ ${weatherLine}
 ${STATES[state]}
 
 AUFTRAG:
-Der Text hat zwei Jobs. Erstens: Momentum erzeugen – Fabian körperlich in Bewegung bringen. Kernprinzip: Aktion kommt vor Motivation, der Text redet nicht ÜBER den Tag, er zieht in ihn hinein. Zweitens: das mentale Setting setzen. Die erste Stunde des Tages ist Fabians Territorium – ohne Bildschirm. Sein Kopf will sofort ans Handy, an den Rechner, an irgendwas "Produktives"; der Text gibt der ersten Stunde stattdessen eine Richtung und macht sie interessant.
+Zwei Jobs. Erstens Momentum: Aktion kommt vor Motivation, der Text zieht in den Tag hinein statt über ihn zu reden. Zweitens mentales Setting: Die erste Stunde ist Fabians Territorium, ohne Bildschirm – sein Kopf will sofort ans Handy oder an den Rechner; gib der Stunde stattdessen eine Richtung und mach sie interessanter als den Bildschirm.
 
-BILDSCHIRM-ÜBERGABE (Pflicht am Textende):
-Der Text endet damit, dass Fabian das Handy weglegt – aber nie mit leeren Händen, sondern mit genau EINEM konkreten analogen Anker, den er stattdessen in die Hand nimmt. Wähle dafür einen dieser Anker:
+ÜBERGABE:
+Der Text mündet darin, dass Fabian das Handy weglegt – nie mit leeren Händen, sondern mit genau EINEM dieser analogen Anker:
 ${analog.map(a=>"- "+a).join("\n")}
-Formuliere die Übergabe als Einladung mit Zug ("Handy hinlegen, Notizbuch mitnehmen"), niemals als Verbot oder Moralpredigt über Bildschirme.${lateBlock}
+Jedes Mal völlig anders formuliert. Als Einladung mit Zug, nie als Verbot oder Bildschirm-Moralpredigt.
+
+ANTI-SCHABLONE – WICHTIGSTE REGEL VON ALLEN:
+- Übernimm KEINE Formulierung aus diesem Briefing wörtlich in den Text.
+- Wähle jeden Tag eine andere Dramaturgie: mal eröffnet die Übergabe-Idee den Text, mal eine einzige Handlung, mal der Aufhänger, mal eine Frage. Die Reihenfolge der Elemente ist völlig frei.
+- Höchstens 3 konkrete Handlungen im ganzen Text. Der Text darf NIE wie eine Checkliste oder Anleitung klingen – Ketten aus "Dann… Danach… Dann…" sind verboten.
+- Diese Wendungen sind verbraucht und dürfen nicht vorkommen: "bevor irgendein Bildschirm angeht", "Alles andere darf heute liegen bleiben", "die eine Sache, die wirklich zählt". Wenn du den Gedanken brauchst, finde eine frische, eigene Formulierung dafür.
+- "Füße auf den Boden" darf nur selten und nie als erster Satz vorkommen.${lateBlock}
 
 BLICKWINKEL FÜR HEUTE (nur als kurzer Aufhänger, maximal 1–2 Sätze, dann in Bewegung):
 ${angle.hint}
 
 HANDLUNGS-BAUSTEINE FÜR HEUTE:
 ${actions.map(a=>"- "+a.t).join("\n")}
-Baue die Momentum-Kette aus 2–3 dieser Bausteine, frei formuliert und in sinnvoller Reihenfolge. Nutze NUR diese Bausteine – keine eigenen Standard-Handlungen aus Gewohnheit. Einzig "aufstehen" oder "Füße auf den Boden" darf zusätzlich als Auftakt vorkommen, muss aber nicht.
+Wähle 1–3 davon – weniger ist oft besser. Ein Text, der eine einzige Handlung richtig gut verkauft, schlägt eine Aufzählung. Nutze keine eigenen Standard-Handlungen aus Gewohnheit; "aufstehen" als Auftakt ist erlaubt.
 
 REGELN – alle verbindlich:
 - Deutsch, du-Form, ein Absatz oder zwei kurze.
